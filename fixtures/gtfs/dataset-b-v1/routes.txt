@@ -1,0 +1,6 @@
+route_id,agency_id,route_short_name,route_long_name,route_type
+R1,bn,1,Tuyến 1,3
+R2,bn,2,Tuyến 2,3
+R3,bn,3,Tuyến 3,3
+R4,bn,4,Tuyến 4,3
+R5,bn,5,Tuyến 5,3

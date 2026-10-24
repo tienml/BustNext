@@ -1,0 +1,13 @@
+{
+  "expo": {
+    "name": "BusNext",
+    "slug": "busnext",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "scheme": "busnext",
+    "android": { "package": "com.busnext.mobile" },
+    "ios": { "bundleIdentifier": "com.busnext.mobile" }
+  }
+}
