@@ -1,6 +1,10 @@
-# Máy frontend của thành viên
+# Frontend Expo
 
-Frontend của BusNext nằm trong thư mục `mobile/`. Source phải được giữ nguyên trong repository, nhưng dependency cài riêng trên máy thành viên frontend.
+Frontend production duy nhất của repo là `mobile/`, app React Native + Expo kết nối Laravel API. Không còn static prototype hoặc runtime frontend thứ hai trong repo.
+
+## Chạy app kết nối API (`mobile/`)
+
+Frontend production hiện tại nằm trong thư mục `mobile/`. Source phải được giữ nguyên trong repository, nhưng dependency cài riêng trên máy thành viên frontend.
 
 ## Cần cài
 
@@ -47,7 +51,16 @@ Thay `192.168.1.100` bằng IPv4 LAN thật của máy backend. Hai máy phải 
 
 Không dùng `localhost` khi frontend chạy trên máy khác, vì khi đó `localhost` trỏ về máy frontend.
 
-## Kiểm tra kết nối
+## Tài khoản mobile
+
+Mobile Expo hiện hỗ trợ đăng ký/đăng nhập bằng Laravel Sanctum. Backend cần chạy migration mới trước khi thử luồng tài khoản:
+
+```bash
+cd /mnt/d/BusNext/backend
+php artisan migrate
+```
+
+Token được lưu trong SecureStore của thiết bị. Khi backend chưa chạy migration hoặc API không truy cập được, màn hình tài khoản sẽ hiển thị lỗi và không tạo dữ liệu giả.
 
 Trên máy frontend, mở trình duyệt hoặc terminal và gọi:
 

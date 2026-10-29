@@ -69,12 +69,12 @@ return new class extends Migration {
         Schema::create('routes', function (Blueprint $table): void {
             $table->id(); $table->foreignId('dataset_version_id')->constrained()->cascadeOnDelete();
             $table->string('route_id'); $table->foreignId('agency_id')->nullable(); $table->string('short_name')->nullable(); $table->string('long_name')->nullable(); $table->unsignedSmallInteger('route_type')->nullable(); $table->timestamps();
-            $table->unique(['dataset_version_id', 'route_id']); $table->index(['dataset_version_id', 'long_name']);
+            $table->unique(['dataset_version_id', 'route_id']);
         });
         Schema::create('stops', function (Blueprint $table): void {
             $table->id(); $table->foreignId('dataset_version_id')->constrained()->cascadeOnDelete();
             $table->string('stop_id'); $table->string('code')->nullable(); $table->string('name'); $table->decimal('lat', 9, 6)->nullable(); $table->decimal('lon', 9, 6)->nullable(); $table->timestamps();
-            $table->unique(['dataset_version_id', 'stop_id']); $table->index(['dataset_version_id', 'name']);
+            $table->unique(['dataset_version_id', 'stop_id']);
         });
         Schema::create('calendar_services', function (Blueprint $table): void {
             $table->id(); $table->foreignId('dataset_version_id')->constrained()->cascadeOnDelete();
@@ -90,12 +90,12 @@ return new class extends Migration {
         Schema::create('trips', function (Blueprint $table): void {
             $table->id(); $table->foreignId('dataset_version_id')->constrained()->cascadeOnDelete();
             $table->string('trip_id'); $table->string('route_id'); $table->string('service_id'); $table->string('headsign')->nullable(); $table->unsignedTinyInteger('direction_id')->nullable(); $table->timestamps();
-            $table->unique(['dataset_version_id', 'trip_id']); $table->index(['dataset_version_id', 'route_id']); $table->index(['dataset_version_id', 'service_id']);
+            $table->unique(['dataset_version_id', 'trip_id']);
         });
         Schema::create('stop_times', function (Blueprint $table): void {
             $table->id(); $table->foreignId('dataset_version_id')->constrained()->cascadeOnDelete();
             $table->string('trip_id'); $table->string('stop_id'); $table->unsignedInteger('arrival_seconds'); $table->unsignedInteger('departure_seconds'); $table->string('arrival_raw'); $table->string('departure_raw'); $table->unsignedInteger('stop_sequence'); $table->timestamps();
-            $table->unique(['dataset_version_id', 'trip_id', 'stop_sequence']); $table->index(['dataset_version_id', 'stop_id', 'departure_seconds']);
+            $table->unique(['dataset_version_id', 'trip_id', 'stop_sequence']);
         });
     }
 

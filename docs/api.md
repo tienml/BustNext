@@ -37,8 +37,32 @@ Hai dạng route cho cùng dữ liệu:
 | `GET` | `/gtfs/trips/{tripId}` | — | Chi tiết chuyến + toàn bộ stop_times |
 | `GET` | `/gtfs/trips/{tripId}/stop-times` | — | Chỉ stop_times |
 | `GET` | `/search` | `q` (bắt buộc), `limit` | Tìm cả trạm và tuyến, trả về nhóm `stops` / `routes` |
+| `GET` | `/journeys/plan` | `from_stop_id`, `to_stop_id`, `date`, `time`, `max_transfers`, `limit` | Lập tuyến GTFS tĩnh trực tiếp hoặc tối đa một lần chuyển tuyến; kiểm tra cả service date trước đó cho chuyến sau nửa đêm |
 
-## Định dạng thời gian
+Ví dụ lập tuyến:
+
+```text
+GET /api/v1/journeys/plan?from_stop_id=YN001&to_stop_id=NN001&date=2026-10-22&time=05:30:00&max_transfers=1&limit=5
+```
+
+Kết quả có `type` (`direct` hoặc `one_transfer`), `transfers`, thời gian GTFS, `duration_minutes` và các `legs`. Mỗi leg kèm `trip_id`, tuyến, trạm đầu/cuối và `service_date`. Đây là lập tuyến theo lịch tĩnh; chưa bao gồm đi bộ, hình học tuyến hoặc realtime.
+
+## Authentication & account
+
+Các endpoint tài khoản dùng Laravel Sanctum bearer token. Token phải gửi ở header `Authorization: Bearer <token>`.
+
+| Method | Path | Auth | Mô tả |
+| --- | --- | --- | --- |
+| `POST` | `/v1/auth/register` | Không | Tạo tài khoản và trả token |
+| `POST` | `/v1/auth/login` | Không | Đăng nhập và trả token |
+| `POST` | `/v1/auth/logout` | Có | Thu hồi token hiện tại |
+| `GET` | `/v1/auth/me` | Có | Thông tin tài khoản hiện tại |
+| `GET` | `/v1/favorites` | Có | Danh sách trạm/tuyến yêu thích |
+| `POST` | `/v1/favorites` | Có | Body `{ "type": "stop hoặc route", "entity_id": "..." }` |
+| `DELETE` | `/v1/favorites/{favorite}` | Có | Xóa yêu thích thuộc tài khoản hiện tại |
+
+Đăng ký yêu cầu `name`, `email`, `password`, `password_confirmation`; mật khẩu tối thiểu 8 ký tự. Không lưu bearer token trong AsyncStorage; app mobile dùng SecureStore.
+
 
 GTFS time lưu thành **giây tính từ đầu service date**, không dùng SQL `TIME`. Một chuyến `25:10:00` là `90600` giây và vẫn thuộc service date mà nó khởi hành. Mỗi departure trả về cả hai dạng:
 

@@ -5,21 +5,22 @@
 ## Stack
 
 - Backend: PHP 8.3, Laravel 11, PostgreSQL 16, REST JSON.
-- Mobile: React Native + Expo + TypeScript.
+- App kết nối API: React Native + Expo + TypeScript trong `mobile/`. `mobile/` là runtime frontend duy nhất của sản phẩm.
 - GTFS: `agency.txt`, `stops.txt`, `routes.txt`, `trips.txt`, `stop_times.txt`, `calendar.txt`, `calendar_dates.txt`.
 
 ## Trạng thái
 
-Backend đã chạy được end-to-end trên WSL2 + Docker (PostgreSQL 16 + PostGIS, Redis 7):
+Backend được thiết kế để chạy end-to-end trên WSL2 + Docker (PostgreSQL 16 + PostGIS, Redis 7):
 
 - Schema GTFS với version isolation, `stop_times` lưu giây nguyên để giữ được `25:10:00`.
 - API tra cứu trạm gần (haversine), giờ xe kế tiếp (kể cả chuyến vượt nửa đêm), tuyến, chuyến, tìm kiếm gộp.
-- 25 test pass trên PostgreSQL thật (`php artisan test`), gồm test cho ngoại lệ lịch, chuyến qua nửa đêm và import ZIP.
+- Bộ test hiện có bao phủ ngoại lệ lịch, chuyến qua nửa đêm và import ZIP; test auth/favorites và lập tuyến đã được bổ sung trong phiên bản này.
 - Seed demo `hanoi-bus`: 3 tuyến, 6 trạm, 4 chuyến, có một chuyến `25:10:00` và một ngoại lệ lịch ngày 02/09.
+- Auth Sanctum, favorites server-backed và lập tuyến tĩnh trực tiếp/chuyển tuyến một lần đã có test; cần chạy trong môi trường PHP/Composer/PostgreSQL để xác nhận tích hợp.
 
-Phần chưa làm: xử lý upload ZIP chạy nền (`GtfsZipImporter` mới là domain class chưa nối vào queue), so sánh version, realtime vehicle/incident/detour, và toàn bộ mobile app.
+### Tài khoản và dữ liệu cá nhân
 
-## Chạy backend (máy backend)
+Mobile hỗ trợ đăng ký, đăng nhập, đăng xuất và yêu thích trạm/tuyến qua Laravel Sanctum. Chạy `php artisan migrate` trong backend trước khi dùng. Realtime xe, traffic, vé điện tử và thanh toán vẫn cần các milestone backend/dịch vụ riêng; app không hiển thị chúng như dữ liệu thật khi chưa có nguồn hợp lệ.
 
 Máy backend chỉ cần WSL2, Docker Engine trong WSL, PHP 8.3+, Composer 2+, Git và các PHP extension `pdo_pgsql`, `mbstring`, `xml`, `zip`, `curl`, `redis`. **Không cần Node.js, npm, Expo hoặc dependency trong `mobile/` trên máy này.**
 
@@ -64,17 +65,18 @@ docker compose logs -f postgres
 curl http://localhost:8000/api/health
 ```
 
-## Chạy mobile (máy thành viên frontend)
+## Chạy mobile kết nối API (máy thành viên frontend)
 
-Thành viên frontend mới cần cài Node.js 20+, npm, Expo/React Native toolchain và chạy:
+Đây là app chính đang gọi Laravel API:
 
 ```bash
 cd mobile
 npm install
+npm run typecheck
 npx expo start
 ```
 
-Họ đặt `EXPO_PUBLIC_API_URL` trỏ tới backend. Nếu chạy Android Emulator trên cùng máy backend, thường dùng `http://10.0.2.2:8000/api`; nếu frontend chạy trên máy khác, dùng địa chỉ IP LAN của máy backend, ví dụ `http://192.168.x.x:8000/api`. Hai máy phải cùng mạng và firewall phải cho phép cổng 8000.
+Đặt `EXPO_PUBLIC_API_URL` trỏ tới backend theo hướng dẫn trong [docs/frontend-setup.md](docs/frontend-setup.md).
 
 ## Nguyên tắc quan trọng
 

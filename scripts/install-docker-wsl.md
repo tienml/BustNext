@@ -1,6 +1,6 @@
 # Chạy backend trên WSL2 (không dùng Docker Desktop)
 
-Tài liệu chuẩn cho máy chạy Laravel backend của BusNext. Frontend giữ trong `mobile/` nhưng chạy trên máy thành viên frontend.
+Tài liệu chuẩn cho máy chạy Laravel backend của BusNext. App kết nối API nằm trong `mobile/`; frontend production dùng Expo và chạy trên máy thành viên frontend.
 
 ## Thành phần cần cài trên máy backend
 
@@ -89,9 +89,9 @@ Kiểm tra API:
 curl http://localhost:8000/api/health
 ```
 
-## Frontend trên máy thành viên
+## App kết nối API trên máy thành viên (`mobile/`)
 
-Không xóa hoặc bỏ source frontend. Thành viên frontend clone repository rồi chạy trên máy của họ:
+Giữ source `mobile/` trong repository và chạy trên máy frontend:
 
 ```bash
 cd mobile

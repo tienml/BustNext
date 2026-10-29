@@ -95,9 +95,9 @@ php artisan test
 
 Nếu checkout hiện tại chưa có `.env.example`, tạo/cấu hình file môi trường theo quy trình backend thay vì tự ghi đè file `.env` hiện có.
 
-## 4. Frontend trên máy thành viên
+## 4. App kết nối API trên máy thành viên (`mobile/`)
 
-Giữ nguyên mã nguồn `mobile/src`, `mobile/App.tsx`, `mobile/package.json` và `mobile/package-lock.json` trong repository. Thành viên frontend clone cùng repository trên máy của họ rồi chạy:
+Giữ nguyên mã nguồn app kết nối API `mobile/src`, `mobile/App.tsx`, `mobile/package.json` và `mobile/package-lock.json` trong repository. Thành viên frontend clone cùng repository trên máy của họ rồi chạy:
 
 ```bash
 cd mobile

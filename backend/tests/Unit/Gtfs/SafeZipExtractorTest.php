@@ -18,7 +18,7 @@ final class SafeZipExtractorTest extends TestCase
         }
         $zipPath = tempnam(sys_get_temp_dir(), 'busnext-zip-');
         $zip = new ZipArchive();
-        $zip->open($zipPath);
+        $zip->open($zipPath, ZipArchive::OVERWRITE);
         $zip->addFromString('../escape.txt', 'unsafe');
         $zip->close();
 

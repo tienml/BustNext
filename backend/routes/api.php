@@ -2,7 +2,9 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\Api\AccountController;
 use App\Http\Controllers\Api\DatasetVersionController;
+use App\Http\Controllers\Api\JourneyController;
 use App\Http\Controllers\Api\LookupController;
 use App\Http\Controllers\Api\RouteController;
 use App\Http\Controllers\Api\StopController;
@@ -83,6 +85,23 @@ Route::prefix('v1')->group(function (): void {
     /* ------------------------------ search ------------------------------- */
 
     Route::get('/search', [LookupController::class, 'search']);
+    Route::get('/journeys/plan', [JourneyController::class, 'plan']);
+
+    Route::prefix('auth')->middleware('throttle:10,1')->group(function (): void {
+        Route::post('/register', [AccountController::class, 'register']);
+        Route::post('/login', [AccountController::class, 'login']);
+
+        Route::middleware('auth:sanctum')->group(function (): void {
+            Route::post('/logout', [AccountController::class, 'logout']);
+            Route::get('/me', [AccountController::class, 'me']);
+        });
+    });
+
+    Route::middleware('auth:sanctum')->group(function (): void {
+        Route::get('/favorites', [AccountController::class, 'favorites']);
+        Route::post('/favorites', [AccountController::class, 'storeFavorite']);
+        Route::delete('/favorites/{favorite}', [AccountController::class, 'destroyFavorite']);
+    });
 });
 
 Route::bind('dataset', static fn (string $value): Dataset => Dataset::query()->findOrFail($value));

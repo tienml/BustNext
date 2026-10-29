@@ -125,24 +125,46 @@ final class RouteController
             ]);
         }
 
-        $trips = DB::table('trips')
-            ->where('dataset_version_id', $version->id)
-            ->where('route_id', $routeId)
-            ->whereIn('service_id', $serviceIds)
-            ->get(['trip_id', 'headsign', 'direction_id', 'service_id']);
+        $firstStopSequence = DB::table('stop_times as st')
+            ->join('trips as trip', function ($join): void {
+                $join->on('trip.dataset_version_id', '=', 'st.dataset_version_id')
+                    ->on('trip.trip_id', '=', 'st.trip_id');
+            })
+            ->where('st.dataset_version_id', $version->id)
+            ->where('trip.route_id', $routeId)
+            ->whereIn('trip.service_id', $serviceIds)
+            ->select('st.dataset_version_id', 'st.trip_id', DB::raw('MIN(st.stop_sequence) as first_stop_sequence'))
+            ->groupBy('st.dataset_version_id', 'st.trip_id');
 
-        foreach ($trips as $trip) {
-            $first = DB::table('stop_times')
-                ->where('dataset_version_id', $version->id)
-                ->where('trip_id', $trip->trip_id)
-                ->orderBy('stop_sequence')
-                ->first(['departure_seconds', 'departure_raw']);
+        $firstStopTimes = DB::table('stop_times as first_st')
+            ->joinSub($firstStopSequence, 'first_sequence', function ($join): void {
+                $join->on('first_sequence.dataset_version_id', '=', 'first_st.dataset_version_id')
+                    ->on('first_sequence.trip_id', '=', 'first_st.trip_id')
+                    ->on('first_sequence.first_stop_sequence', '=', 'first_st.stop_sequence');
+            })
+            ->where('first_st.dataset_version_id', $version->id)
+            ->select([
+                'first_st.dataset_version_id',
+                'first_st.trip_id',
+                'first_st.departure_seconds',
+                'first_st.departure_raw',
+            ]);
 
-            $trip->departure_seconds = $first?->departure_seconds;
-            $trip->departure_time = $first?->departure_raw;
-        }
+        $trips = DB::table('trips as t')
+            ->leftJoinSub($firstStopTimes, 'first_stop_time', function ($join): void {
+                $join->on('first_stop_time.dataset_version_id', '=', 't.dataset_version_id')
+                    ->on('first_stop_time.trip_id', '=', 't.trip_id');
+            })
+            ->where('t.dataset_version_id', $version->id)
+            ->where('t.route_id', $routeId)
+            ->whereIn('t.service_id', $serviceIds)
+            ->get([
+                't.trip_id', 't.headsign', 't.direction_id', 't.service_id',
+                'first_stop_time.departure_seconds',
+                'first_stop_time.departure_raw as departure_time',
+            ]);
 
-        $sorted = collect($trips)->sortBy('departure_seconds')->values();
+        $sorted = $trips->sortBy('departure_seconds')->values();
 
         return response()->json([
             'data' => $sorted,

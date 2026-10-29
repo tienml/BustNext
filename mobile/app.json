@@ -7,7 +7,20 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "scheme": "busnext",
-    "android": { "package": "com.busnext.mobile" },
-    "ios": { "bundleIdentifier": "com.busnext.mobile" }
+    "android": {
+      "package": "com.busnext.mobile"
+    },
+    "ios": {
+      "bundleIdentifier": "com.busnext.mobile"
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "BusNext cần quyền vị trí để tìm các trạm gần bạn."
+        }
+      ],
+      "expo-secure-store"
+    ]
   }
 }

@@ -15,6 +15,9 @@ backend/.env.*
 mobile/.env
 mobile/.env.*
 !mobile/.env.example
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
 
 # PHP / Laravel dependencies and generated files
 /vendor/

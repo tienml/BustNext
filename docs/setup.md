@@ -45,7 +45,7 @@ Kiểm tra API:
 curl http://localhost:8000/api/health
 ```
 
-## Frontend trên máy thành viên
+## App kết nối API trên máy thành viên frontend (`mobile/`)
 
 ```bash
 cd mobile
@@ -54,7 +54,7 @@ npm run typecheck
 npx expo start
 ```
 
-Tạo biến môi trường trên máy frontend, không commit secret:
+Đây là app dùng dữ liệu từ Laravel API. Tạo biến môi trường trên máy frontend, không commit secret:
 
 ```env
 # Frontend chạy trên Android Emulator cùng máy backend
