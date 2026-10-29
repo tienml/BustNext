@@ -1,20 +1,25 @@
 import { useEffect, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useStopSearch } from '../hooks/useTransitQueries';
 import { useJourneyPlan } from '../hooks/useJourneyPlan';
 import type { RootStackParamList } from '../navigation/types';
-import { colors, spacing } from '../theme';
+import { radius, spacing, useTheme } from '../theme';
 import { formatGtfsTime, getTransitDateTime } from '../utils/transitTime';
 import type { Stop } from '../api/client';
+import { Badge, Card, EmptyState, ErrorState, Icon, ListRow, LoadingState, Notice, ScreenHeader, SearchField, SectionTitle } from '../components/ui';
+
+type Target = 'from' | 'to';
 
 export function JourneyPlannerScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const { colors } = useTheme();
   const [fromQuery, setFromQuery] = useState('');
   const [toQuery, setToQuery] = useState('');
   const [from, setFrom] = useState<Stop | null>(null);
   const [to, setTo] = useState<Stop | null>(null);
+  const [focused, setFocused] = useState<Target>('from');
   const [transitNow, setTransitNow] = useState(getTransitDateTime());
   const fromResults = useStopSearch(fromQuery);
   const toResults = useStopSearch(toQuery);
@@ -25,74 +30,164 @@ export function JourneyPlannerScreen() {
     return () => clearInterval(timer);
   }, []);
 
-  function selectStop(stop: Stop, target: 'from' | 'to') {
+  function selectStop(stop: Stop, target: Target) {
     if (target === 'from') {
       setFrom(stop);
       setFromQuery(stop.name);
+      if (!to) setFocused('to');
     } else {
       setTo(stop);
       setToQuery(stop.name);
     }
   }
 
-  const activeTarget = !from ? 'from' : 'to';
-  const activeQuery = activeTarget === 'from' ? fromQuery : toQuery;
-  const activeResults = activeTarget === 'from' ? fromResults : toResults;
+  function swap() {
+    setFrom(to);
+    setTo(from);
+    setFromQuery(toQuery);
+    setToQuery(fromQuery);
+  }
+
+  const activeQuery = focused === 'from' ? fromQuery : toQuery;
+  const activeSelected = focused === 'from' ? from : to;
+  const activeResults = focused === 'from' ? fromResults : toResults;
   const results = activeResults.data?.data ?? [];
-  const showSuggestions = (!from || !to) && activeQuery.trim().length > 1 && !activeResults.isFetching && results.length > 0;
+  const showSuggestions = !activeSelected && activeQuery.trim().length > 1;
+  const sameStop = Boolean(from && to && from.stop_id === to.stop_id);
+  const ready = Boolean(from && to && !sameStop);
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <FlatList
-        data={plan.data?.data ?? []}
+        data={ready ? plan.data?.data ?? [] : []}
         keyExtractor={(item, index) => `${item.legs[0]?.trip_id}-${index}`}
         contentContainerStyle={styles.list}
+        keyboardShouldPersistTaps="handled"
         ListHeaderComponent={
           <>
-            <Text style={styles.eyebrow}>TÌM ĐƯỜNG</Text>
-            <Text style={styles.title}>Đi bằng xe buýt</Text>
-            <Text style={styles.subtitle}>Chọn hai trạm để tìm chuyến trực tiếp hoặc một lần chuyển tuyến theo lịch GTFS.</Text>
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>ĐIỂM ĐI</Text>
-              <TextInput accessibilityLabel="Điểm đi" value={fromQuery} onChangeText={(value) => { setFromQuery(value); setFrom(null); }} placeholder="Chọn trạm xuất phát" placeholderTextColor={colors.muted} style={styles.input} />
-            </View>
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>ĐIỂM ĐẾN</Text>
-              <TextInput accessibilityLabel="Điểm đến" value={toQuery} onChangeText={(value) => { setToQuery(value); setTo(null); }} placeholder="Chọn trạm đến" placeholderTextColor={colors.muted} style={styles.input} />
-            </View>
+            <ScreenHeader
+              eyebrow="TÌM ĐƯỜNG"
+              title="Đi bằng xe buýt"
+              subtitle="Chọn hai trạm để tìm chuyến đi thẳng hoặc chuyển tuyến một lần theo lịch GTFS."
+            />
+            <Card style={styles.form}>
+              <View style={styles.fieldRow}>
+                <Icon name="radio-button-on" size={18} color={colors.primary} />
+                <View style={styles.fieldBody}>
+                  <SearchField
+                    accessibilityLabel="Điểm đi"
+                    placeholder="Chọn trạm xuất phát"
+                    value={fromQuery}
+                    onFocus={() => setFocused('from')}
+                    onChangeText={(value) => { setFromQuery(value); setFrom(null); setFocused('from'); }}
+                  />
+                </View>
+              </View>
+              <View style={styles.fieldRow}>
+                <Icon name="location" size={18} color={colors.secondary} />
+                <View style={styles.fieldBody}>
+                  <SearchField
+                    accessibilityLabel="Điểm đến"
+                    placeholder="Chọn trạm đến"
+                    value={toQuery}
+                    onFocus={() => setFocused('to')}
+                    onChangeText={(value) => { setToQuery(value); setTo(null); setFocused('to'); }}
+                  />
+                </View>
+              </View>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Đổi điểm đi và điểm đến"
+                onPress={swap}
+                hitSlop={8}
+                style={({ pressed }) => [styles.swap, { backgroundColor: colors.primarySoft }, pressed && styles.pressed]}
+              >
+                <Icon name="swap-vertical" size={18} color={colors.primary} />
+                <Text style={[styles.swapText, { color: colors.primary }]}>Đổi chiều</Text>
+              </Pressable>
+            </Card>
+
             {showSuggestions ? (
-              <View style={styles.suggestions}>
-                <Text style={styles.suggestionTitle}>Chọn {activeTarget === 'from' ? 'điểm đi' : 'điểm đến'}</Text>
+              <View style={styles.block}>
+                <SectionTitle>{focused === 'from' ? 'Chọn điểm đi' : 'Chọn điểm đến'}</SectionTitle>
+                {activeResults.isFetching && results.length === 0 ? <LoadingState rows={2} height={58} /> : null}
+                {activeResults.isError ? <ErrorState message="Không tải được danh sách trạm." onRetry={() => activeResults.refetch()} /> : null}
+                {!activeResults.isFetching && !activeResults.isError && results.length === 0 ? (
+                  <Notice message="Không tìm thấy trạm phù hợp." />
+                ) : null}
                 {results.slice(0, 6).map((stop) => (
-                  <Pressable key={stop.stop_id} onPress={() => selectStop(stop, activeTarget)} style={styles.suggestionRow} accessibilityRole="button" accessibilityLabel={`Chọn trạm ${stop.name}`}>
-                    <Text style={styles.suggestionName}>{stop.name}</Text>
-                    <Text style={styles.suggestionCode}>{stop.code ?? stop.stop_id}</Text>
-                  </Pressable>
+                  <ListRow
+                    key={stop.stop_id}
+                    leading={<Badge icon="location-outline" />}
+                    title={stop.name}
+                    meta={stop.code ?? stop.stop_id}
+                    accessibilityLabel={`Chọn trạm ${stop.name}`}
+                    onPress={() => selectStop(stop, focused)}
+                  />
                 ))}
               </View>
             ) : null}
-            {from && to ? <Text style={styles.ready}>Đã chọn: {from.name} → {to.name}</Text> : null}
-            {plan.isFetching ? <View style={styles.skeleton} accessibilityLiveRegion="polite" /> : null}
-            {plan.isError ? <Text style={styles.error} accessibilityLiveRegion="polite">Không tìm được phương án. Kiểm tra dữ liệu lịch hoặc thử trạm khác.</Text> : null}
-            {from && to && !plan.isFetching ? <Text style={styles.sectionTitle}>Phương án phù hợp</Text> : null}
+
+            {sameStop ? <Notice tone="warning" message="Điểm đi và điểm đến đang là cùng một trạm." /> : null}
+            {ready ? (
+              <View style={styles.block}>
+                <SectionTitle right={<Text style={[styles.clock, { color: colors.muted }]}>{transitNow.date} · {formatGtfsTime(transitNow.time)}</Text>}>
+                  Phương án phù hợp
+                </SectionTitle>
+                {plan.isFetching && !plan.data ? <LoadingState rows={2} height={130} /> : null}
+                {plan.isError ? <ErrorState message="Không tìm được phương án. Kiểm tra kết nối hoặc thử trạm khác." onRetry={() => plan.refetch()} /> : null}
+              </View>
+            ) : null}
           </>
         }
-        ListEmptyComponent={from && to && !plan.isFetching ? <Text style={styles.muted}>Không có chuyến phù hợp trong thời gian hiện tại.</Text> : null}
+        ListEmptyComponent={
+          ready && !plan.isFetching && !plan.isError ? (
+            <EmptyState icon="git-branch-outline" title="Không có chuyến phù hợp" message="Không có chuyến đi thẳng hoặc chuyển một lần trong thời gian tới." />
+          ) : !from && !to && !showSuggestions ? (
+            <EmptyState icon="navigate-outline" title="Chọn điểm đi và điểm đến" message="Gõ tên hoặc mã trạm, rồi chọn trong danh sách gợi ý." />
+          ) : null
+        }
         renderItem={({ item }) => (
-          <View style={styles.journeyCard}>
+          <Card style={styles.journey}>
             <View style={styles.journeyHeader}>
-              <Text style={styles.journeyTime}>{formatGtfsTime(item.departure_time)} → {formatGtfsTime(item.arrival_time)}</Text>
-              <Text style={styles.duration}>{item.duration_minutes} phút</Text>
+              <Text style={[styles.journeyTime, { color: colors.ink }]}>
+                {formatGtfsTime(item.departure_time)} → {formatGtfsTime(item.arrival_time)}
+              </Text>
+              <View style={[styles.duration, { backgroundColor: colors.primarySoft }]}>
+                <Icon name="time-outline" size={14} color={colors.primary} />
+                <Text style={[styles.durationText, { color: colors.primary }]}>{item.duration_minutes} phút</Text>
+              </View>
             </View>
-            <Text style={styles.transfer}>{item.transfers === 0 ? 'Đi thẳng' : `${item.transfers} lần chuyển tuyến`}{item.service_date ? ` · ngày dịch vụ ${item.service_date}` : ''}</Text>
+            <Text style={[styles.transfer, { color: colors.muted }]}>
+              {item.transfers === 0 ? 'Đi thẳng' : `${item.transfers} lần chuyển tuyến`}
+              {item.service_date ? ` · ngày dịch vụ ${item.service_date}` : ''}
+            </Text>
             {item.legs.map((leg, index) => (
-              <Pressable key={`${leg.trip_id}-${index}`} onPress={() => navigation.navigate('TripDetails', { tripId: leg.trip_id, title: leg.headsign ?? undefined })} style={styles.leg} accessibilityRole="button" accessibilityLabel={`Xem chuyến ${leg.route_short_name ?? leg.route_id}`}>
-                <View style={styles.routeBadge}><Text style={styles.route}>{leg.route_short_name ?? leg.route_id}</Text></View>
-                <View style={styles.legBody}><Text style={styles.legTitle}>{leg.headsign ?? 'Theo lịch tuyến'}</Text><Text style={styles.legMeta}>{leg.from.stop_name} → {leg.to.stop_name}</Text></View>
-                <Text style={styles.chevron}>›</Text>
-              </Pressable>
+              <View key={`${leg.trip_id}-${index}`}>
+                {index > 0 ? (
+                  <View style={styles.transferRow}>
+                    <Icon name="walk-outline" size={16} color={colors.warning} />
+                    <Text style={[styles.transferText, { color: colors.warning }]}>Chuyển tuyến tại {leg.from.stop_name ?? leg.from.stop_id}</Text>
+                  </View>
+                ) : null}
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Xem chuyến tuyến ${leg.route_short_name ?? leg.route_id}`}
+                  onPress={() => navigation.navigate('TripDetails', { tripId: leg.trip_id, title: leg.headsign ?? undefined })}
+                  style={({ pressed }) => [styles.leg, { borderTopColor: colors.border }, pressed && styles.pressed]}
+                >
+                  <Badge label={leg.route_short_name ?? leg.route_id} tone="secondary" />
+                  <View style={styles.legBody}>
+                    <Text style={[styles.legTitle, { color: colors.ink }]} numberOfLines={1}>{leg.headsign ?? 'Theo lịch tuyến'}</Text>
+                    <Text style={[styles.legMeta, { color: colors.muted }]} numberOfLines={2}>
+                      {formatGtfsTime(leg.from.departure_time)} {leg.from.stop_name ?? leg.from.stop_id} → {formatGtfsTime(leg.to.arrival_time)} {leg.to.stop_name ?? leg.to.stop_id}
+                    </Text>
+                  </View>
+                  <Icon name="chevron-forward" size={20} color={colors.muted} />
+                </Pressable>
+              </View>
             ))}
-          </View>
+          </Card>
         )}
       />
     </View>
@@ -100,34 +195,26 @@ export function JourneyPlannerScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  list: { padding: spacing.lg, paddingBottom: 28 },
-  eyebrow: { color: colors.primary, fontSize: 12, fontWeight: '800', letterSpacing: 1.2 },
-  title: { color: colors.ink, fontSize: 29, fontWeight: '800', marginTop: 6 },
-  subtitle: { color: colors.muted, fontSize: 14, lineHeight: 21, marginTop: 6, marginBottom: 18 },
-  inputGroup: { marginBottom: 12 },
-  label: { color: colors.muted, fontSize: 11, fontWeight: '800', marginBottom: 6 },
-  input: { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 14, minHeight: 52, paddingHorizontal: 16, fontSize: 16, color: colors.ink },
-  suggestions: { backgroundColor: colors.surface, borderRadius: 15, padding: 8, marginBottom: 12, shadowColor: colors.ink, shadowOpacity: 0.08, shadowRadius: 8, elevation: 3 },
-  suggestionTitle: { color: colors.primary, fontWeight: '800', padding: 8 },
-  suggestionRow: { borderTopColor: colors.border, borderTopWidth: 1, padding: 11 },
-  suggestionName: { color: colors.ink, fontWeight: '700' },
-  suggestionCode: { color: colors.muted, fontSize: 12, marginTop: 3 },
-  ready: { color: colors.primary, backgroundColor: colors.primarySoft, borderRadius: 12, padding: 12, marginBottom: 10, fontWeight: '700' },
-  sectionTitle: { color: colors.ink, fontSize: 18, fontWeight: '800', marginTop: 16, marginBottom: 10 },
-  journeyCard: { backgroundColor: colors.surface, borderRadius: 16, padding: 14, marginBottom: 12, shadowColor: colors.ink, shadowOpacity: 0.05, shadowRadius: 7, elevation: 2 },
+  container: { flex: 1 },
+  list: { padding: spacing.lg, paddingBottom: 32 },
+  form: { padding: spacing.md, gap: spacing.sm },
+  fieldRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  fieldBody: { flex: 1 },
+  swap: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-end', gap: 6, borderRadius: radius.sm, paddingHorizontal: 12, paddingVertical: 8 },
+  swapText: { fontWeight: '800', fontSize: 13 },
+  pressed: { opacity: 0.72 },
+  block: { marginTop: spacing.md },
+  clock: { fontSize: 12, fontWeight: '700' },
+  journey: { padding: spacing.md, marginBottom: spacing.sm },
   journeyHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  journeyTime: { color: colors.ink, fontWeight: '800', fontSize: 16 },
-  duration: { color: colors.primary, fontWeight: '800' },
-  transfer: { color: colors.muted, fontSize: 12, marginTop: 5, marginBottom: 10 },
-  leg: { borderTopColor: colors.border, borderTopWidth: 1, paddingTop: 10, marginTop: 8, flexDirection: 'row', alignItems: 'center' },
-  routeBadge: { backgroundColor: colors.primarySoft, borderRadius: 9, minWidth: 44, minHeight: 38, alignItems: 'center', justifyContent: 'center', marginRight: 10 },
-  route: { color: colors.primary, fontWeight: '800' },
+  journeyTime: { fontWeight: '800', fontSize: 17 },
+  duration: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
+  durationText: { fontWeight: '800', fontSize: 12 },
+  transfer: { fontSize: 12, marginTop: 5, marginBottom: 4 },
+  transferRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10 },
+  transferText: { fontSize: 12, fontWeight: '700' },
+  leg: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 10, marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   legBody: { flex: 1 },
-  legTitle: { color: colors.ink, fontWeight: '700' },
-  legMeta: { color: colors.muted, fontSize: 12, marginTop: 3 },
-  chevron: { color: colors.primary, fontSize: 26 },
-  error: { backgroundColor: colors.dangerSurface, color: colors.danger, borderRadius: 12, padding: 12, marginTop: 8 },
-  muted: { color: colors.muted, textAlign: 'center', marginTop: 20 },
-  skeleton: { height: 120, backgroundColor: '#E6E8F0', borderRadius: 16, marginTop: 10 },
+  legTitle: { fontWeight: '700' },
+  legMeta: { fontSize: 12, marginTop: 3, lineHeight: 17 },
 });

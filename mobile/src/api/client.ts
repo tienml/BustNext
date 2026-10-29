@@ -48,9 +48,15 @@ export type Trip = {
   trip_id: string;
   route_id?: string;
   service_id?: string;
-  trip_headsign?: string;
+  /** Backend field name. */
+  headsign?: string | null;
+  /** Older field name kept for compatibility. */
+  trip_headsign?: string | null;
   direction_id?: number;
-  departure_time?: string;
+  departure_time?: string | null;
+  short_name?: string | null;
+  long_name?: string | null;
+  agency_name?: string | null;
   route_short_name?: string;
 };
 
@@ -58,6 +64,10 @@ export type StopTime = {
   trip_id?: string;
   stop_id: string;
   stop_sequence: number;
+  stop_code?: string | null;
+  stop_name?: string | null;
+  lat?: string | number | null;
+  lon?: string | number | null;
   arrival_time?: string;
   departure_time?: string;
   arrival_seconds?: number;

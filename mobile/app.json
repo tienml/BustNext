@@ -20,7 +20,8 @@
           "locationAlwaysAndWhenInUsePermission": "BusNext cần quyền vị trí để tìm các trạm gần bạn."
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-font"
     ]
   }
 }
