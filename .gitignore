@@ -53,3 +53,4 @@ yarn-error.log*
 
 # Local task/runtime state
 .claude/scheduled_tasks.lock
+.claude

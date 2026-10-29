@@ -56,7 +56,11 @@ export function AccountScreen() {
     const routeCount = favorites.items.filter((item) => item.type === 'route').length;
     return (
       <ScrollView style={{ backgroundColor: colors.background }} contentContainerStyle={styles.content}>
-        <ScreenHeader eyebrow="TÀI KHOẢN BUSNEXT" title={`Xin chào, ${auth.user.name}`} subtitle={auth.user.email} />
+        <ScreenHeader
+          eyebrow={auth.user.role === 'admin' ? 'TÀI KHOẢN QUẢN TRỊ' : 'TÀI KHOẢN BUSNEXT'}
+          title={`Xin chào, ${auth.user.name}`}
+          subtitle={auth.user.email}
+        />
         <Card style={styles.profile}>
           <View style={[styles.avatar, { backgroundColor: colors.primarySoft }]}>
             <Text style={[styles.avatarText, { color: colors.primary }]}>{auth.user.name.trim().charAt(0).toUpperCase() || '?'}</Text>
@@ -67,6 +71,9 @@ export function AccountScreen() {
           </View>
         </Card>
         <Card style={styles.info}>
+          {auth.user.role === 'admin' ? (
+            <InfoRow icon="server-outline" text="Tài khoản quản trị: dùng tab Quản lý để nhập GTFS, kiểm tra lỗi, so sánh và kích hoạt phiên bản." />
+          ) : null}
           <InfoRow icon="cloud-done-outline" text="Yêu thích được lưu trên tài khoản để dùng trên nhiều thiết bị." />
           <InfoRow icon={dark ? 'moon-outline' : 'sunny-outline'} text={`Giao diện ${dark ? 'tối' : 'sáng'} đang theo cài đặt của thiết bị.`} />
         </Card>
@@ -121,7 +128,7 @@ function Stat({ icon, value, label }: { icon: 'location' | 'bus'; value: number;
   );
 }
 
-function InfoRow({ icon, text }: { icon: 'cloud-done-outline' | 'moon-outline' | 'sunny-outline'; text: string }) {
+function InfoRow({ icon, text }: { icon: 'cloud-done-outline' | 'moon-outline' | 'sunny-outline' | 'server-outline'; text: string }) {
   const { colors } = useTheme();
   return (
     <View style={styles.infoRow}>

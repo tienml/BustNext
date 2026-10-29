@@ -1,10 +1,10 @@
 import { DarkTheme, DefaultTheme, NavigationContainer, type Theme } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { JourneyPlannerScreen } from './src/screens/JourneyPlannerScreen';
 import { RouteDetailsScreen } from './src/screens/RouteDetailsScreen';
@@ -14,9 +14,13 @@ import { StopSearchScreen } from './src/screens/StopSearchScreen';
 import { TripDetailsScreen } from './src/screens/TripDetailsScreen';
 import { AccountScreen } from './src/screens/AccountScreen';
 import { FavoritesScreen } from './src/screens/FavoritesScreen';
+import { AdminScreen } from './src/screens/AdminScreen';
+import { VersionDetailsScreen } from './src/screens/VersionDetailsScreen';
+import { CompareVersionsScreen } from './src/screens/CompareVersionsScreen';
+import { SavedQueriesScreen } from './src/screens/SavedQueriesScreen';
 import type { MainTabParamList, RootStackParamList } from './src/navigation/types';
 import { useTheme } from './src/theme';
-import { AuthProvider } from './src/hooks/useAuth';
+import { AuthProvider, useAuth } from './src/hooks/useAuth';
 import type { IconName } from './src/components/ui';
 
 const queryClient = new QueryClient({
@@ -35,11 +39,19 @@ const TAB_ICONS: Record<keyof MainTabParamList, [IconName, IconName]> = {
   StopSearch: ['location', 'location-outline'],
   RouteSearch: ['bus', 'bus-outline'],
   Favorites: ['heart', 'heart-outline'],
+  Admin: ['server', 'server-outline'],
   Account: ['person-circle', 'person-circle-outline'],
 };
 
+/** Admin screens exist only for admin accounts; passengers never see them. */
+function useIsAdmin() {
+  const { user } = useAuth();
+  return user?.role === 'admin';
+}
+
 function MainTabs() {
   const { colors } = useTheme();
+  const isAdmin = useIsAdmin();
   return (
     <Tabs.Navigator
       initialRouteName="Home"
@@ -47,7 +59,7 @@ function MainTabs() {
         headerShown: false,
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.muted,
-        tabBarLabelStyle: { fontSize: 11, fontWeight: '700' },
+        tabBarLabelStyle: { fontSize: 10, fontWeight: '700' },
         tabBarStyle: { height: 64, paddingBottom: 8, paddingTop: 6, borderTopColor: colors.border, backgroundColor: colors.surface },
         tabBarIcon: ({ focused, color, size }) => {
           const [active, inactive] = TAB_ICONS[route.name];
@@ -59,6 +71,9 @@ function MainTabs() {
       <Tabs.Screen name="StopSearch" component={StopSearchScreen} options={{ tabBarLabel: 'Tìm trạm', tabBarAccessibilityLabel: 'Tìm trạm' }} />
       <Tabs.Screen name="RouteSearch" component={RouteSearchScreen} options={{ tabBarLabel: 'Tuyến xe', tabBarAccessibilityLabel: 'Tra cứu tuyến xe' }} />
       <Tabs.Screen name="Favorites" component={FavoritesScreen} options={{ tabBarLabel: 'Yêu thích', tabBarAccessibilityLabel: 'Yêu thích' }} />
+      {isAdmin ? (
+        <Tabs.Screen name="Admin" component={AdminScreen} options={{ tabBarLabel: 'Quản lý', tabBarAccessibilityLabel: 'Quản lý dữ liệu GTFS' }} />
+      ) : null}
       <Tabs.Screen name="Account" component={AccountScreen} options={{ tabBarLabel: 'Tài khoản', tabBarAccessibilityLabel: 'Tài khoản' }} />
     </Tabs.Navigator>
   );
@@ -66,6 +81,14 @@ function MainTabs() {
 
 function RootNavigator() {
   const { colors, dark } = useTheme();
+  const { token } = useAuth();
+  const isAdmin = useIsAdmin();
+  const queryClient = useQueryClient();
+
+  // Admin data was fetched with the previous account's token; drop it.
+  useEffect(() => {
+    queryClient.removeQueries({ queryKey: ['admin'] });
+  }, [queryClient, token]);
   const navTheme = useMemo<Theme>(() => {
     const base = dark ? DarkTheme : DefaultTheme;
     return {
@@ -99,6 +122,13 @@ function RootNavigator() {
         <Stack.Screen name="StopDetails" component={StopDetailsScreen} options={{ title: 'Giờ xe' }} />
         <Stack.Screen name="RouteDetails" component={RouteDetailsScreen} options={{ title: 'Chi tiết tuyến' }} />
         <Stack.Screen name="TripDetails" component={TripDetailsScreen} options={{ title: 'Lộ trình chuyến' }} />
+        {isAdmin ? (
+          <Stack.Group>
+            <Stack.Screen name="VersionDetails" component={VersionDetailsScreen} options={{ title: 'Chi tiết phiên bản' }} />
+            <Stack.Screen name="CompareVersions" component={CompareVersionsScreen} options={{ title: 'So sánh phiên bản' }} />
+            <Stack.Screen name="SavedQueries" component={SavedQueriesScreen} options={{ title: 'Truy vấn mẫu' }} />
+          </Stack.Group>
+        ) : null}
       </Stack.Navigator>
     </NavigationContainer>
   );

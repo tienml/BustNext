@@ -4,13 +4,16 @@ declare(strict_types=1);
 
 use App\Http\Controllers\Api\AccountController;
 use App\Http\Controllers\Api\DatasetVersionController;
+use App\Http\Controllers\Api\ExportController;
 use App\Http\Controllers\Api\JourneyController;
 use App\Http\Controllers\Api\LookupController;
 use App\Http\Controllers\Api\RouteController;
+use App\Http\Controllers\Api\SavedQueryController;
 use App\Http\Controllers\Api\StopController;
 use App\Http\Controllers\Api\TripController;
 use App\Models\Dataset;
 use App\Models\DatasetVersion;
+use App\Models\SavedQuery;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 
@@ -45,10 +48,32 @@ Route::prefix('v1')->group(function (): void {
         'data' => Dataset::query()->with('activeVersion')->paginate(20),
     ]));
 
-    Route::get('/datasets/{datasetId}/versions', [DatasetVersionController::class, 'index']);
-    Route::post('/datasets/{datasetId}/versions', [DatasetVersionController::class, 'store']);
-    Route::get('/versions/{version}/validation', [DatasetVersionController::class, 'validation'])->name('versions.validation');
-    Route::post('/versions/{version}/activate', [DatasetVersionController::class, 'activate']);
+    /* ------------------------- admin (GTFS operator) ------------------------ */
+    // Import, validation, activation, comparison, sample queries and exports
+    // change or reveal what passengers see, so they need an admin account.
+
+    Route::middleware(['auth:sanctum', 'admin'])->group(function (): void {
+        Route::get('/datasets/{datasetId}/versions', [DatasetVersionController::class, 'index']);
+        Route::post('/datasets/{datasetId}/versions', [DatasetVersionController::class, 'store']);
+        Route::get('/versions/compare', [DatasetVersionController::class, 'compare']);
+        Route::get('/versions/{version}/validation', [DatasetVersionController::class, 'validation'])->name('versions.validation');
+        Route::post('/versions/{version}/activate', [DatasetVersionController::class, 'activate']);
+        Route::post('/versions/{version}/export/{kind}/link', [ExportController::class, 'link'])->whereIn('kind', ['schedule', 'validation']);
+
+        Route::get('/datasets/{datasetId}/queries', [SavedQueryController::class, 'index']);
+        Route::post('/datasets/{datasetId}/queries', [SavedQueryController::class, 'store']);
+        Route::post('/datasets/{datasetId}/queries/run', [SavedQueryController::class, 'runAll']);
+        Route::put('/queries/{savedQuery}', [SavedQueryController::class, 'update']);
+        Route::delete('/queries/{savedQuery}', [SavedQueryController::class, 'destroy']);
+        Route::post('/queries/{savedQuery}/run', [SavedQueryController::class, 'run']);
+    });
+
+    // Downloads are opened by the browser, which cannot send a Bearer token,
+    // so they are authorised by a short-lived signed link issued above.
+    Route::middleware('signed:relative')->group(function (): void {
+        Route::get('/versions/{version}/export/schedule.csv', [ExportController::class, 'schedule'])->name('export.schedule');
+        Route::get('/versions/{version}/export/validation.csv', [ExportController::class, 'validation'])->name('export.validation');
+    });
 
     /* ------------------------- dataset-scoped GTFS ------------------------ */
 
@@ -106,4 +131,5 @@ Route::prefix('v1')->group(function (): void {
 
 Route::bind('dataset', static fn (string $value): Dataset => Dataset::query()->findOrFail($value));
 Route::bind('datasetId', static fn (string $value): Dataset => Dataset::query()->findOrFail($value));
+Route::bind('savedQuery', static fn (string $value): SavedQuery => SavedQuery::query()->findOrFail($value));
 Route::bind('version', static fn (string $value): DatasetVersion => DatasetVersion::query()->findOrFail($value));

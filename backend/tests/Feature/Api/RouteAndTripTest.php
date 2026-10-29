@@ -97,7 +97,8 @@ final class RouteAndTripTest extends TestCase
 
     public function test_dataset_scoped_routes_honour_the_dataset_binding(): void
     {
-        $response = $this->getJson('/api/v1/datasets/1/stops');
+        $datasetId = \App\Models\Dataset::query()->where('slug', 'hanoi-bus')->value('id');
+        $response = $this->getJson("/api/v1/datasets/{$datasetId}/stops");
 
         $response->assertOk()->assertJsonPath('meta.count', 6);
     }

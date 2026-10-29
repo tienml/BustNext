@@ -7,6 +7,9 @@ export type RootStackParamList = {
   RouteDetails: { route: Route };
   JourneyPlanner: undefined;
   TripDetails: { tripId: string; title?: string };
+  VersionDetails: { versionId: number; datasetId: number };
+  CompareVersions: { datasetId: number };
+  SavedQueries: { datasetId: number };
 };
 
 export type MainTabParamList = {
@@ -14,6 +17,7 @@ export type MainTabParamList = {
   StopSearch: undefined;
   RouteSearch: undefined;
   Favorites: undefined;
+  Admin: undefined;
   Account: undefined;
 };
 

@@ -62,7 +62,7 @@ final class AccountController
 
     public function me(Request $request): JsonResponse
     {
-        return response()->json(['data' => $request->user()]);
+        return response()->json(['data' => $request->user()->refresh()]);
     }
 
     public function favorites(Request $request): JsonResponse

@@ -8,17 +8,17 @@ use App\Models\Dataset;
 use App\Models\DatasetVersion;
 use App\Services\DatasetVersionService;
 use App\Services\GtfsImportService;
+use App\Services\VersionComparisonService;
+use InvalidArgumentException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\Rule;
 use Throwable;
 
 final class DatasetVersionController
 {
-    public function index(string $datasetId): JsonResponse
+    public function index(Dataset $datasetId): JsonResponse
     {
-        $dataset = Dataset::query()->findOrFail($datasetId);
+        $dataset = $datasetId;
         $versions = DatasetVersion::query()
             ->where('dataset_id', $dataset->id)
             ->orderByDesc('version_number')
@@ -32,6 +32,22 @@ final class DatasetVersionController
         return response()->json(['data' => $version->validationErrors()->paginate(50)]);
     }
 
+    public function compare(Request $request, VersionComparisonService $comparison): JsonResponse
+    {
+        $validated = $request->validate([
+            'base' => ['required', 'integer', 'exists:dataset_versions,id'],
+            'target' => ['required', 'integer', 'exists:dataset_versions,id'],
+        ]);
+        $base = DatasetVersion::query()->findOrFail($validated['base']);
+        $target = DatasetVersion::query()->findOrFail($validated['target']);
+
+        try {
+            return response()->json(['data' => $comparison->compare($base, $target)]);
+        } catch (InvalidArgumentException $exception) {
+            return response()->json(['errors' => [['code' => 'INVALID_COMPARISON', 'message' => $exception->getMessage()]]], 422);
+        }
+    }
+
     public function activate(DatasetVersion $version, DatasetVersionService $service): JsonResponse
     {
         try {
@@ -42,9 +58,9 @@ final class DatasetVersionController
         }
     }
 
-    public function store(Request $request, string $datasetId, GtfsImportService $importer): JsonResponse
+    public function store(Request $request, Dataset $datasetId, GtfsImportService $importer): JsonResponse
     {
-        $dataset = Dataset::query()->findOrFail($datasetId);
+        $dataset = $datasetId;
         $validated = $request->validate([
             'file' => ['required', 'file', 'mimes:zip', 'max:51200'],
             'label' => ['nullable', 'string', 'max:120'],

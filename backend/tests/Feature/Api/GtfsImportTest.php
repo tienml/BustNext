@@ -15,6 +15,7 @@ final class GtfsImportTest extends TestCase
     {
         parent::setUp();
         $this->seedSampleDataset();
+        $this->actingAsAdmin();
     }
 
     public function test_valid_gtfs_zip_is_imported_as_ready_without_replacing_active_version(): void
