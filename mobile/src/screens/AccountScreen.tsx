@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { apiClient } from '../api/client';
 import { useAuth } from '../hooks/useAuth';
 import { useFavorites } from '../hooks/useFavorites';
 import { spacing, useTheme } from '../theme';
@@ -9,16 +10,54 @@ export function AccountScreen() {
   const auth = useAuth();
   const favorites = useFavorites();
   const { colors, dark } = useTheme();
-  const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [mode, setMode] = useState<'login' | 'register' | 'forgot' | 'reset'>('login');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmation, setConfirmation] = useState('');
+  const [resetToken, setResetToken] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   async function submit() {
     setError('');
+    if (mode === 'forgot') {
+      if (!email.trim()) {
+        setError('Vui lòng nhập email để nhận hướng dẫn đặt lại mật khẩu.');
+        return;
+      }
+      setSubmitting(true);
+      try {
+        await apiClient.forgotPassword(email.trim());
+        setError('Nếu email tồn tại, hướng dẫn đặt lại mật khẩu đã được gửi. Kiểm tra hộp thư của bạn.');
+        setMode('reset');
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : 'Không thể gửi yêu cầu đặt lại mật khẩu.');
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
+    if (mode === 'reset') {
+      if (!email.trim() || !resetToken.trim() || !password || password !== confirmation) {
+        setError('Vui lòng nhập email, mã khôi phục và hai mật khẩu giống nhau.');
+        return;
+      }
+      setSubmitting(true);
+      try {
+        await apiClient.resetPassword(email.trim(), resetToken.trim(), password, confirmation);
+        setMode('login');
+        setPassword('');
+        setConfirmation('');
+        setResetToken('');
+        setError('Mật khẩu đã được đổi. Bạn có thể đăng nhập bằng mật khẩu mới.');
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : 'Không thể đặt lại mật khẩu.');
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
     if (!email.trim() || !password || (mode === 'register' && !name.trim())) {
       setError('Vui lòng điền đầy đủ thông tin.');
       return;
@@ -83,33 +122,45 @@ export function AccountScreen() {
   }
 
   const isLogin = mode === 'login';
+  const isForgot = mode === 'forgot';
+  const isReset = mode === 'reset';
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.background }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <ScreenHeader
           eyebrow="TÀI KHOẢN BUSNEXT"
-          title={isLogin ? 'Đăng nhập' : 'Tạo tài khoản'}
-          subtitle="Đồng bộ trạm và tuyến yêu thích của bạn."
+          title={isForgot ? 'Quên mật khẩu' : isReset ? 'Đặt mật khẩu mới' : isLogin ? 'Đăng nhập' : 'Tạo tài khoản'}
+          subtitle={isForgot ? 'Nhập email để nhận hướng dẫn đặt lại mật khẩu.' : isReset ? 'Nhập mã trong email và mật khẩu mới.' : 'Đồng bộ trạm và tuyến yêu thích của bạn.'}
         />
         <Card style={styles.form}>
-          {!isLogin ? (
+          {!isLogin && !isForgot && !isReset ? (
             <SearchField icon="person-outline" accessibilityLabel="Họ tên" placeholder="Họ tên" value={name} onChangeText={setName} autoComplete="name" />
           ) : null}
           <SearchField icon="mail-outline" accessibilityLabel="Email" placeholder="Email" value={email} onChangeText={setEmail} autoCapitalize="none" autoComplete="email" keyboardType="email-address" />
-          <SearchField icon="lock-closed-outline" accessibilityLabel="Mật khẩu" placeholder="Mật khẩu (tối thiểu 8 ký tự)" value={password} onChangeText={setPassword} secureTextEntry autoComplete={isLogin ? 'password' : 'new-password'} />
-          {!isLogin ? (
-            <SearchField icon="shield-checkmark-outline" accessibilityLabel="Xác nhận mật khẩu" placeholder="Xác nhận mật khẩu" value={confirmation} onChangeText={setConfirmation} secureTextEntry autoComplete="new-password" />
+          {isReset ? <SearchField icon="key-outline" accessibilityLabel="Mã khôi phục" placeholder="Mã khôi phục trong email" value={resetToken} onChangeText={setResetToken} autoCapitalize="none" /> : null}
+          {!isForgot ? (
+            <>
+              <SearchField icon="lock-closed-outline" accessibilityLabel="Mật khẩu" placeholder="Mật khẩu (tối thiểu 8 ký tự)" value={password} onChangeText={setPassword} secureTextEntry autoComplete={isLogin ? 'password' : 'new-password'} />
+              {!isLogin ? (
+                <SearchField icon="shield-checkmark-outline" accessibilityLabel="Xác nhận mật khẩu" placeholder="Xác nhận mật khẩu" value={confirmation} onChangeText={setConfirmation} secureTextEntry autoComplete="new-password" />
+              ) : null}
+            </>
           ) : null}
           {error ? <ErrorState message={error} /> : null}
-          <Button label={isLogin ? 'Đăng nhập' : 'Đăng ký'} icon={isLogin ? 'log-in-outline' : 'person-add-outline'} loading={submitting} onPress={() => void submit()} />
+          <Button label={isForgot ? 'Gửi hướng dẫn' : isReset ? 'Đổi mật khẩu' : isLogin ? 'Đăng nhập' : 'Đăng ký'} icon={isForgot ? 'mail-outline' : isReset ? 'checkmark-circle-outline' : isLogin ? 'log-in-outline' : 'person-add-outline'} loading={submitting} onPress={() => void submit()} />
         </Card>
+        {isLogin ? (
+          <Pressable accessibilityRole="button" onPress={() => { setMode('forgot'); setError(''); }} style={styles.link}>
+            <Text style={[styles.linkText, { color: colors.secondary }]}>Quên mật khẩu?</Text>
+          </Pressable>
+        ) : null}
         <Pressable
           accessibilityRole="button"
-          onPress={() => { setMode(isLogin ? 'register' : 'login'); setError(''); }}
+          onPress={() => { setMode(isForgot || isLogin ? (isForgot ? 'login' : 'register') : 'login'); setError(''); }}
           style={styles.link}
         >
           <Text style={[styles.linkText, { color: colors.secondary }]}>
-            {isLogin ? 'Chưa có tài khoản? Đăng ký' : 'Đã có tài khoản? Đăng nhập'}
+            {isForgot || !isLogin ? 'Quay lại đăng nhập' : 'Chưa có tài khoản? Đăng ký'}
           </Text>
         </Pressable>
       </ScrollView>

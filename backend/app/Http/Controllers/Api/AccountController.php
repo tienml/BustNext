@@ -9,6 +9,8 @@ use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Password;
 use Illuminate\Validation\Rule;
 
 final class AccountController
@@ -51,6 +53,47 @@ final class AccountController
         return response()->json(['data' => [
             'user' => $user,
             'token' => $token,
+        ]]);
+    }
+
+    public function forgotPassword(Request $request): JsonResponse
+    {
+        $validated = $request->validate(['email' => ['required', 'email']]);
+        $status = Password::sendResetLink($validated);
+
+        if ($status !== Password::RESET_LINK_SENT) {
+            Log::warning('Password reset request was not sent', [
+                'status' => $status,
+            ]);
+        }
+
+        return response()->json(['data' => [
+            'message' => 'Nếu email tồn tại, hướng dẫn đặt lại mật khẩu đã được gửi.',
+        ]]);
+    }
+
+    public function resetPassword(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'email' => ['required', 'email'],
+            'token' => ['required', 'string'],
+            'password' => ['required', 'string', 'min:8', 'confirmed'],
+        ]);
+
+        $status = Password::reset($validated, function (User $user, string $password): void {
+            $user->forceFill(['password' => $password])->save();
+            $user->tokens()->delete();
+        });
+
+        if ($status !== Password::PASSWORD_RESET) {
+            return response()->json(['errors' => [[
+                'code' => 'INVALID_PASSWORD_RESET',
+                'message' => __($status),
+            ]]], 422);
+        }
+
+        return response()->json(['data' => [
+            'message' => 'Mật khẩu đã được đặt lại. Vui lòng đăng nhập lại.',
         ]]);
     }
 

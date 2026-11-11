@@ -1,12 +1,12 @@
-# 📚 Giải thích Tech Stack và Kiến trúc BusFast
+# 📚 Giải thích Tech Stack và Kiến trúc BusNext
 
 ## 🎯 Tổng quan
 
-BusFast là ứng dụng tra cứu lịch trình xe bus sử dụng dữ liệu GTFS (General Transit Feed Specification) với kiến trúc **Backend API + Mobile App**.
+BusNext là ứng dụng tra cứu lịch trình xe bus sử dụng dữ liệu GTFS (General Transit Feed Specification) với kiến trúc **Backend API + Mobile App**.
 
 ---
 
-## 🔧 BACKEND - PHP Laravel 11
+## 🔧 BACKEND - PHP Laravel 12
 
 ### 🏗️ Tại sao chọn Laravel?
 
@@ -306,12 +306,11 @@ php artisan test --filter StopControllerTest
 
 ### Frontend:
 ```bash
-# Jest unit tests
-npm test
-
-# E2E tests (Detox)
-npm run test:e2e
+npm run typecheck
+npx expo-doctor
 ```
+
+Mobile unit and end-to-end test scripts are not currently included in the repository; the commands above are the supported frontend checks.
 
 ---
 
@@ -401,18 +400,18 @@ LEADER Agent (điều phối)
 
 | Layer | Technology | Vai trò |
 |-------|-----------|---------|
-| **Backend API** | Laravel 11 (PHP 8.2) | RESTful API, Business Logic |
+| **Backend API** | Laravel 12 (PHP 8.3) | RESTful API, Business Logic |
 | **Database** | PostgreSQL 16 + PostGIS | GTFS data, GIS queries |
 | **Cache** | Redis 7 | Cache, Session, Realtime |
 | **Mobile** | React Native + Expo | Cross-platform app |
 | **State Management** | TanStack Query | Server state, caching |
-| **Maps** | react-native-maps | Hiển thị bản đồ, markers |
+| **Maps** | react-native-webview + OpenStreetMap | Hiển thị bản đồ và markers |
 | **Language** | TypeScript | Type safety cho frontend |
 | **Package Manager** | Composer (BE), npm (FE) | Dependency management |
-| **Testing** | PHPUnit (BE), Jest (FE) | Unit & Integration tests |
+| **Testing** | PHPUnit (BE), TypeScript/Expo Doctor (FE) | Backend integration tests and mobile verification |
 | **Container** | Docker Compose | Local development environment |
 | **Version Control** | Git | Source control |
-| **CI/CD** | GitHub Actions | Automated testing & deployment |
+| **CI** | GitHub Actions | Backend tests and mobile verification |
 
 ---
 

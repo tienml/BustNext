@@ -33,11 +33,11 @@ Các lệnh `npm install` và `npm run typecheck` tạo/đọc dependency ở m�
 Máy backend chạy:
 
 ```bash
-cd /mnt/d/BusNext/backend
+cd /path/to/BustNext/backend
 php artisan serve --host=0.0.0.0 --port=8000
 ```
 
-Tạo file `mobile/.env` trên máy frontend và đặt một trong các URL sau:
+Tạo file `mobile/.env` từ `mobile/.env.example` trên máy frontend và đặt một trong các URL sau:
 
 ```env
 # Android Emulator chạy cùng máy backend
@@ -56,7 +56,7 @@ Không dùng `localhost` khi frontend chạy trên máy khác, vì khi đó `loc
 Mobile Expo hiện hỗ trợ đăng ký/đăng nhập bằng Laravel Sanctum. Backend cần chạy migration mới trước khi thử luồng tài khoản:
 
 ```bash
-cd /mnt/d/BusNext/backend
+cd /path/to/BustNext/backend
 php artisan migrate
 ```
 

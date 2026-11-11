@@ -425,6 +425,19 @@ export class ApiClient {
     return this.post<AuthResponse>('/v1/auth/login', { email, password });
   }
 
+  forgotPassword(email: string) {
+    return this.post<{ message: string }>('/v1/auth/forgot-password', { email });
+  }
+
+  resetPassword(email: string, token: string, password: string, passwordConfirmation: string) {
+    return this.post<{ message: string }>('/v1/auth/reset-password', {
+      email,
+      token,
+      password,
+      password_confirmation: passwordConfirmation,
+    });
+  }
+
   logout() {
     return this.post<{ logged_out: boolean }>('/v1/auth/logout');
   }

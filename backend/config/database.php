@@ -9,7 +9,7 @@ return [
             'url' => env('DB_URL'),
             'host' => env('DB_HOST', '127.0.0.1'),
             'port' => env('DB_PORT', '5432'),
-            'database' => env('DB_DATABASE', 'busfast'),
+            'database' => env('DB_DATABASE', 'busnext'),
             'username' => env('DB_USERNAME', 'busnext'),
             'password' => env('DB_PASSWORD', 'busnext'),
             'charset' => env('DB_CHARSET', 'utf8'),
@@ -29,7 +29,7 @@ return [
         'client' => env('REDIS_CLIENT', 'phpredis'),
         'options' => [
             'cluster' => env('REDIS_CLUSTER', 'redis'),
-            'prefix' => env('REDIS_PREFIX', 'busfast_'),
+            'prefix' => env('REDIS_PREFIX', 'busnext_'),
         ],
         'default' => [
             'url' => env('REDIS_URL'),

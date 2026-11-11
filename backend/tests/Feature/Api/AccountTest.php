@@ -51,6 +51,22 @@ final class AccountTest extends TestCase
             ->assertJsonPath('errors.0.code', 'INVALID_CREDENTIALS');
     }
 
+    public function test_password_reset_request_does_not_reveal_whether_email_exists(): void
+    {
+        $user = User::query()->create([
+            'name' => 'Nguyen Van A',
+            'email' => 'a@example.test',
+            'password' => 'password123',
+        ]);
+
+        $existing = $this->postJson('/api/v1/auth/forgot-password', ['email' => $user->email]);
+        $missing = $this->postJson('/api/v1/auth/forgot-password', ['email' => 'missing@example.test']);
+
+        $existing->assertOk()->assertJsonPath('data.message', 'Nếu email tồn tại, hướng dẫn đặt lại mật khẩu đã được gửi.');
+        $missing->assertOk()->assertJsonPath('data.message', 'Nếu email tồn tại, hướng dẫn đặt lại mật khẩu đã được gửi.');
+        self::assertSame($existing->status(), $missing->status());
+    }
+
     public function test_it_returns_the_authenticated_profile_and_revokes_the_current_token_on_logout(): void
     {
         $user = User::query()->create([

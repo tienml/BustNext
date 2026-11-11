@@ -113,7 +113,7 @@ Máy backend không cần chạy các lệnh trên và không cần giữ `mobil
 Từ thư mục gốc repository trong WSL:
 
 ```bash
-cd /mnt/d/BusNext
+cd /path/to/BustNext
 sudo service docker start
 docker compose up -d postgres redis
 docker compose ps

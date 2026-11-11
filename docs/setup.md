@@ -11,7 +11,7 @@
 Trong terminal Ubuntu/WSL:
 
 ```bash
-cd /mnt/d/BusNext
+cd /path/to/BustNext
 sudo service docker start
 docker compose up -d postgres redis
 
@@ -71,7 +71,7 @@ Nếu frontend ở máy khác, backend phải chạy với `--host=0.0.0.0`, hai
 Integration test cần PostgreSQL thật từ Docker Compose:
 
 ```bash
-cd /mnt/d/BusNext
+cd /path/to/BustNext
 bash scripts/check-wsl.sh
 cd backend
 php artisan test

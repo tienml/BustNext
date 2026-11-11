@@ -19,7 +19,7 @@ use Illuminate\Support\Facades\Route;
 
 /*
 |--------------------------------------------------------------------------
-| BusFast API
+| BusNext API
 |--------------------------------------------------------------------------
 |
 | Two route shapes are exposed for lookups: a dataset-scoped form that binds
@@ -30,7 +30,7 @@ use Illuminate\Support\Facades\Route;
 */
 
 Route::get('/', static fn () => response()->json([
-    'app' => 'BusFast API',
+    'app' => 'BusNext API',
     'version' => '1.0.0',
     'timezone' => 'Asia/Ho_Chi_Minh',
 ]));
@@ -115,6 +115,8 @@ Route::prefix('v1')->group(function (): void {
     Route::prefix('auth')->middleware('throttle:10,1')->group(function (): void {
         Route::post('/register', [AccountController::class, 'register']);
         Route::post('/login', [AccountController::class, 'login']);
+        Route::post('/forgot-password', [AccountController::class, 'forgotPassword']);
+        Route::post('/reset-password', [AccountController::class, 'resetPassword']);
 
         Route::middleware('auth:sanctum')->group(function (): void {
             Route::post('/logout', [AccountController::class, 'logout']);

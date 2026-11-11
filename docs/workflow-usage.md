@@ -1,8 +1,8 @@
-# BusFast Multi-Agent Workflow
+# BusNext Multi-Agent Workflow
 
 ## Tổng quan
 
-Workflow này tổ chức 5 nhóm agent để phát triển BusFast app:
+Workflow này tổ chức 5 nhóm agent để phát triển BusNext app:
 
 ```
 User Request

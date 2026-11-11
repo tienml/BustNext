@@ -4,8 +4,9 @@
 
 ## Stack
 
-- Backend: PHP 8.3, Laravel 11, PostgreSQL 16, REST JSON.
+- Backend: PHP 8.3, Laravel 12, PostgreSQL 16/PostGIS, Redis 7, REST JSON.
 - App kết nối API: React Native + Expo + TypeScript trong `mobile/`. `mobile/` là runtime frontend duy nhất của sản phẩm.
+- Docker Compose hiện cung cấp PostgreSQL/PostGIS và Redis; Laravel vẫn cần PHP 8.3 và Composer trên máy chạy backend.
 - GTFS: `agency.txt`, `stops.txt`, `routes.txt`, `trips.txt`, `stop_times.txt`, `calendar.txt`, `calendar_dates.txt`.
 
 ## Trạng thái
@@ -27,7 +28,7 @@ Máy backend chỉ cần WSL2, Docker Engine trong WSL, PHP 8.3+, Composer 2+, G
 Trong terminal Ubuntu/WSL:
 
 ```bash
-cd /mnt/d/BusNext
+cd /path/to/BustNext
 
 # Mỗi lần mở WSL nếu Docker chưa chạy
 sudo service docker start
@@ -84,5 +85,26 @@ npx expo start
 - GTFS time được lưu thành giây kể từ đầu `service_date`, không dùng SQL `TIME`. `25:10:00` là `90600` giây và vẫn thuộc service date của feed.
 - `calendar_dates.exception_type=1` thêm dịch vụ, `2` hủy dịch vụ.
 - API luôn trả `service_date`, giờ GTFS gốc và giờ hiển thị địa phương.
+
+## Đóng gói ứng dụng mobile
+
+Cấu hình EAS nằm trong `mobile/eas.json`.
+
+```bash
+cd mobile
+npx eas-cli login
+npx eas-cli build:configure
+
+# APK cài trực tiếp cho Android
+npm run build:android:preview
+
+# AAB để đưa lên Google Play
+npm run build:android:production
+
+# IPA để phân phối iOS (cần Apple Developer và chứng chỉ ký)
+npm run build:ios:production
+```
+
+Trước khi build store, tạo `mobile/.env` với API production HTTPS. `EXPO_PUBLIC_API_URL` được đóng gói vào ứng dụng và không phải secret. Không đưa token, mật khẩu hoặc khóa riêng vào biến `EXPO_PUBLIC_*`.
 
 Xem thêm [docs/setup.md](docs/setup.md), [docs/wsl-setup.md](docs/wsl-setup.md), [docs/frontend-setup.md](docs/frontend-setup.md), [docs/gtfs-support.md](docs/gtfs-support.md) và [docs/api.md](docs/api.md).

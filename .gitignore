@@ -12,6 +12,7 @@ Thumbs.db
 backend/.env
 backend/.env.*
 !backend/.env.example
+!backend/.env.testing
 mobile/.env
 mobile/.env.*
 !mobile/.env.example

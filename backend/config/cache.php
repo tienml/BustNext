@@ -30,5 +30,5 @@ return [
         ],
     ],
 
-    'prefix' => env('CACHE_PREFIX', 'busfast_cache_'),
+    'prefix' => env('CACHE_PREFIX', 'busnext_cache_'),
 ];

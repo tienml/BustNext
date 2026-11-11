@@ -57,7 +57,7 @@ php -m | grep -E '^(PDO|pdo_pgsql|mbstring|xml|zip|curl|redis)$'
 ## Khởi động BusNext
 
 ```bash
-cd /mnt/d/BusNext
+cd /path/to/BustNext
 sudo service docker start
 docker compose up -d postgres redis
 docker compose ps
@@ -112,7 +112,7 @@ Khi frontend ở máy khác, hai máy cần cùng mạng, backend phải dùng `
 Terminal 1:
 
 ```bash
-cd /mnt/d/BusNext
+cd /path/to/BustNext
 sudo service docker start
 docker compose up -d postgres redis
 ```
@@ -120,13 +120,13 @@ docker compose up -d postgres redis
 Terminal 2:
 
 ```bash
-cd /mnt/d/BusNext/backend
+cd /path/to/BustNext/backend
 php artisan serve --host=0.0.0.0 --port=8000
 ```
 
 Dừng server bằng `Ctrl+C`; dừng container mà không xóa volume:
 
 ```bash
-cd /mnt/d/BusNext
+cd /path/to/BustNext
 docker compose stop
 ```
