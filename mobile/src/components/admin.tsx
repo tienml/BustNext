@@ -1,3 +1,4 @@
+import { useState, type ReactNode } from 'react';
 import { Alert, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { DatasetVersion, VersionStatus } from '../api/client';
 import { radius, spacing, useTheme } from '../theme';
@@ -42,11 +43,12 @@ export function formatDateTime(value?: string | null) {
 }
 
 /** Horizontal chip picker. */
-export function ChipPicker<T extends string | number>({ options, value, onChange, label }: {
+export function ChipPicker<T extends string | number>({ options, value, onChange, label, disabled = false }: {
   options: { value: T; label: string }[];
   value?: T;
   onChange: (value: T) => void;
   label: string;
+  disabled?: boolean;
 }) {
   const { colors } = useTheme();
   return (
@@ -59,18 +61,44 @@ export function ChipPicker<T extends string | number>({ options, value, onChange
             <Pressable
               key={String(option.value)}
               accessibilityRole="button"
-              accessibilityState={{ selected }}
+              accessibilityLabel={`${label}: ${option.label}`}
+              accessibilityState={{ selected, disabled }}
+              disabled={disabled}
               onPress={() => onChange(option.value)}
-              style={[
+              style={({ pressed }) => [
                 styles.chip,
-                { borderColor: selected ? colors.primary : colors.border, backgroundColor: selected ? colors.primarySoft : colors.surface },
+                { borderColor: selected ? colors.primary : colors.border, backgroundColor: selected ? colors.primarySoft : colors.surface, opacity: disabled ? 0.5 : pressed ? 0.72 : 1 },
               ]}
             >
-              <Text style={[styles.chipText, { color: selected ? colors.primary : colors.ink }]} numberOfLines={1}>{option.label}</Text>
+              <Text style={[styles.chipText, { color: selected ? colors.primary : colors.ink }]}>{option.label}</Text>
             </Pressable>
           );
         })}
       </ScrollView>
+    </View>
+  );
+}
+
+/** Details stay out of the reading flow until explicitly requested. */
+export function Disclosure({ title, summary, children }: { title: string; summary?: string; children: ReactNode }) {
+  const { colors } = useTheme();
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <View style={{ marginBottom: spacing.sm }}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={title}
+        accessibilityState={{ expanded }}
+        onPress={() => setExpanded((value) => !value)}
+        style={({ pressed }) => ({ minHeight: 48, padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.surfaceMuted, opacity: pressed ? 0.72 : 1, flexDirection: 'row', alignItems: 'center', gap: spacing.sm })}
+      >
+        <View style={{ flex: 1 }}>
+          <Text style={{ color: colors.ink, fontSize: 15, fontWeight: '800' }}>{title}</Text>
+          {summary ? <Text style={{ color: colors.muted, fontSize: 13, lineHeight: 20, marginTop: 4 }}>{summary}</Text> : null}
+        </View>
+        <Icon name={expanded ? 'chevron-up' : 'chevron-down'} size={20} color={colors.muted} />
+      </Pressable>
+      {expanded ? <View style={{ paddingTop: spacing.sm }}>{children}</View> : null}
     </View>
   );
 }
@@ -119,7 +147,7 @@ const styles = StyleSheet.create({
   pickerBlock: { marginBottom: spacing.sm },
   pickerLabel: { fontSize: 12, fontWeight: '800', letterSpacing: 0.6, marginBottom: 6 },
   chips: { gap: 8, paddingRight: spacing.md },
-  chip: { borderWidth: 1, borderRadius: radius.md, minHeight: 44, paddingHorizontal: 14, justifyContent: 'center', maxWidth: 220 },
+  chip: { borderWidth: 1, borderRadius: radius.md, minHeight: 48, paddingVertical: 8, paddingHorizontal: 14, justifyContent: 'center', maxWidth: 220 },
   chipText: { fontSize: 14, fontWeight: '700' },
   stat: { flexGrow: 1, flexBasis: '30%', borderRadius: radius.md, padding: 12, minWidth: 90 },
   statValue: { fontSize: 22, fontWeight: '800' },

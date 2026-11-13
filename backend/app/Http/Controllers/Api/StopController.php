@@ -31,8 +31,14 @@ final class StopController
             return $this->noActiveVersion();
         }
 
-        $query = trim((string) $request->query('q', ''));
-        $limit = min((int) $request->query('limit', 20), 100);
+        $validated = $request->validate([
+            'q' => ['nullable', 'string', 'max:120'],
+            'route_id' => ['nullable', 'string', 'max:255'],
+            'route_type' => ['nullable', 'integer', 'between:0,12'],
+            'limit' => ['nullable', 'integer', 'min:1', 'max:100'],
+        ]);
+        $query = trim($validated['q'] ?? '');
+        $limit = (int) ($validated['limit'] ?? 20);
 
         $stops = DB::table('stops')
             ->where('dataset_version_id', $version->id)
@@ -41,6 +47,23 @@ final class StopController
                 ->orWhere('code', 'like', "%{$query}%")
                 ->orWhere('name', 'like', "%{$query}%")
             ))
+            ->when(isset($validated['route_id']) || isset($validated['route_type']), function ($builder) use ($validated, $version): void {
+                $builder->whereExists(function ($subquery) use ($validated, $version): void {
+                    $subquery->selectRaw('1')->from('stop_times as filter_st')
+                        ->join('trips as filter_t', function ($join): void {
+                            $join->on('filter_t.dataset_version_id', '=', 'filter_st.dataset_version_id')
+                                ->on('filter_t.trip_id', '=', 'filter_st.trip_id');
+                        })
+                        ->join('routes as filter_r', function ($join): void {
+                            $join->on('filter_r.dataset_version_id', '=', 'filter_t.dataset_version_id')
+                                ->on('filter_r.route_id', '=', 'filter_t.route_id');
+                        })
+                        ->where('filter_st.dataset_version_id', $version->id)
+                        ->whereColumn('filter_st.stop_id', 'stops.stop_id')
+                        ->when(isset($validated['route_id']), fn ($q) => $q->where('filter_t.route_id', $validated['route_id']))
+                        ->when(isset($validated['route_type']), fn ($q) => $q->where('filter_r.route_type', (int) $validated['route_type']));
+                });
+            })
             ->orderBy('name')
             ->limit($limit)
             ->get(['id', 'stop_id', 'code', 'name', 'lat', 'lon']);

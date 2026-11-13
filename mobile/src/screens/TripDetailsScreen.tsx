@@ -5,8 +5,10 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useTripDetails } from '../hooks/useTransitQueries';
 import type { RootStackParamList } from '../navigation/types';
-import { radius, spacing, useTheme } from '../theme';
-import { formatGtfsTime } from '../utils/transitTime';
+import { spacing, useTheme } from '../theme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { RouteStopTimeline } from '../components/RouteStopTimeline';
+import { TransitRouteBadge } from '../components/TransitRouteBadge';
 import { EmptyState, ErrorState, LoadingState, ScreenHeader, SectionTitle } from '../components/ui';
 import { TransitMap } from '../components/TransitMap';
 import { toMapPoint, type MapPoint } from '../components/mapHtml';
@@ -15,6 +17,7 @@ export function TripDetailsScreen() {
   const route = useRoute<RouteProp<RootStackParamList, 'TripDetails'>>();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const details = useTripDetails(route.params.tripId);
   const trip = details.data?.data;
   const stopTimes = useMemo(
@@ -46,12 +49,21 @@ export function TripDetailsScreen() {
       <FlatList
         data={stopTimes}
         keyExtractor={(item, index) => `${item.stop_id}-${item.stop_sequence}-${index}`}
-        contentContainerStyle={styles.list}
+        contentContainerStyle={[styles.list, { paddingBottom: spacing.xl + insets.bottom, paddingLeft: spacing.lg + insets.left, paddingRight: spacing.lg + insets.right }]}
         ListHeaderComponent={
           <>
             <ScreenHeader eyebrow="LỘ TRÌNH CHUYẾN" title={title} subtitle={[routeLabel, route.params.tripId].filter(Boolean).join(' · ')} />
+            {trip?.short_name || trip?.route_id ? <TransitRouteBadge label={trip.short_name ?? trip.route_id!} /> : null}
+            <View style={[styles.schedule, { borderLeftColor: colors.primary, backgroundColor: colors.surfaceMuted }]}>
+              <Text style={[styles.scheduleTitle, { color: colors.ink }]}>Lịch dừng của chuyến</Text>
+              <Text style={[styles.note, { color: colors.ink }]}>{route.params.serviceDate ? `Ngày dịch vụ ${route.params.serviceDate}` : 'Thời gian biểu · Chưa chọn ngày dịch vụ'}</Text>
+              <Text style={[styles.note, { color: colors.muted }]}>Thứ tự theo stop_times · Giờ theo lịch GTFS, không phải vị trí xe trực tiếp. Giữ nguyên giờ từ 24:00 trở lên: 25:00 là 01:00 ngày sau ngày dịch vụ.</Text>
+            </View>
             {details.isError ? <ErrorState message="Không tải được các điểm dừng của chuyến." onRetry={() => void details.refetch()} /> : null}
-            {points.length > 0 ? <TransitMap points={points} line={line} height={240} onSelectStop={openStop} /> : null}
+            {points.length > 0 ? <>
+              <TransitMap points={points} line={line} height={240} onSelectStop={openStop} />
+              <Text style={[styles.note, { color: colors.muted }]}>Đường nối các điểm dừng theo thứ tự chuyến, không phải đường đi thực tế trên phố.</Text>
+            </> : null}
             <SectionTitle>{`Điểm dừng${stopTimes.length ? ` (${stopTimes.length})` : ''}`}</SectionTitle>
             {details.isLoading ? <LoadingState rows={4} height={56} /> : null}
           </>
@@ -61,28 +73,10 @@ export function TripDetailsScreen() {
             <EmptyState icon="git-commit-outline" title="Chưa có điểm dừng" message="Chuyến này chưa có dữ liệu stop-times." />
           )
         }
-        renderItem={({ item, index }) => {
-          const first = index === 0;
-          const last = index === stopTimes.length - 1;
-          return (
-            <View style={styles.row}>
-              <View style={styles.marker}>
-                <View style={[styles.segment, { backgroundColor: first ? 'transparent' : colors.primary }]} />
-                <View style={[styles.dot, { borderColor: colors.primary, backgroundColor: first || last ? colors.primary : colors.surface }]} />
-                <View style={[styles.segment, { backgroundColor: last ? 'transparent' : colors.primary }]} />
-              </View>
-              <View style={[styles.body, { borderBottomColor: colors.border }]}>
-                <View style={styles.bodyText}>
-                  <Text style={[styles.stopName, { color: colors.ink }]} numberOfLines={2}>{item.stop_name ?? item.stop?.name ?? item.stop_id}</Text>
-                  <Text style={[styles.meta, { color: colors.muted }]}>{`#${item.stop_sequence} · ${item.stop_code ?? item.stop_id}`}</Text>
-                </View>
-                <Text style={[styles.time, { color: first || last ? colors.primary : colors.ink }]}>
-                  {formatGtfsTime(item.departure_time ?? item.arrival_time)}
-                </Text>
-              </View>
-            </View>
-          );
-        }}
+        renderItem={({ item, index }) => (
+          <RouteStopTimeline item={item} first={index === 0} last={index === stopTimes.length - 1}
+            onPress={() => navigation.navigate('StopDetails', { stop: { stop_id: item.stop_id, code: item.stop_code, name: item.stop_name ?? item.stop?.name ?? item.stop_id, lat: item.lat ?? undefined, lon: item.lon ?? undefined } })} />
+        )}
       />
     </View>
   );
@@ -91,13 +85,7 @@ export function TripDetailsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   list: { padding: spacing.lg, paddingBottom: 30, flexGrow: 1 },
-  row: { flexDirection: 'row', minHeight: 60 },
-  marker: { width: 28, alignItems: 'center' },
-  segment: { width: 3, flex: 1 },
-  dot: { width: 14, height: 14, borderRadius: 7, borderWidth: 3 },
-  body: { flex: 1, flexDirection: 'row', alignItems: 'center', marginLeft: 8, paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderRadius: radius.sm },
-  bodyText: { flex: 1, paddingRight: 8 },
-  stopName: { fontSize: 15, fontWeight: '700' },
-  meta: { fontSize: 12, marginTop: 3 },
-  time: { fontSize: 15, fontWeight: '800' },
+  schedule: { borderLeftWidth: 3, padding: spacing.md, marginVertical: spacing.md, gap: spacing.xs },
+  scheduleTitle: { fontSize: 16, fontWeight: '700' },
+  note: { fontSize: 12, lineHeight: 19, marginVertical: spacing.xs },
 });

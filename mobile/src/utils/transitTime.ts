@@ -31,6 +31,17 @@ export function getTransitDateTime(now = new Date()): { date: string; time: stri
   };
 }
 
+/** Validate a civil lookup instant, not a GTFS service time (which can exceed 24h). */
+export function isTransitDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || value.startsWith('0000')) return false;
+  const date = new Date(`${value}T12:00:00Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}
+
+export function isTransitTime(value: string): boolean {
+  return /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
+}
+
 export function formatGtfsTime(value?: string): string {
   if (!value) return '--:--';
   const [hours = '', minutes = ''] = value.split(':');

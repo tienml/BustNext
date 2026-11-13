@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/reac
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useMemo } from 'react';
+import { SafeAreaProvider, SafeAreaView, initialWindowMetrics, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { JourneyPlannerScreen } from './src/screens/JourneyPlannerScreen';
 import { RouteDetailsScreen } from './src/screens/RouteDetailsScreen';
@@ -12,6 +13,7 @@ import { RouteSearchScreen } from './src/screens/RouteSearchScreen';
 import { StopDetailsScreen } from './src/screens/StopDetailsScreen';
 import { StopSearchScreen } from './src/screens/StopSearchScreen';
 import { TripDetailsScreen } from './src/screens/TripDetailsScreen';
+import { TripSearchScreen } from './src/screens/TripSearchScreen';
 import { AccountScreen } from './src/screens/AccountScreen';
 import { FavoritesScreen } from './src/screens/FavoritesScreen';
 import { AdminScreen } from './src/screens/AdminScreen';
@@ -39,7 +41,6 @@ const TAB_ICONS: Record<keyof MainTabParamList, [IconName, IconName]> = {
   StopSearch: ['location', 'location-outline'],
   RouteSearch: ['bus', 'bus-outline'],
   Favorites: ['heart', 'heart-outline'],
-  Admin: ['server', 'server-outline'],
   Account: ['person-circle', 'person-circle-outline'],
 };
 
@@ -51,16 +52,23 @@ function useIsAdmin() {
 
 function MainTabs() {
   const { colors } = useTheme();
-  const isAdmin = useIsAdmin();
+  const insets = useSafeAreaInsets();
   return (
     <Tabs.Navigator
       initialRouteName="Home"
+      screenLayout={({ children }) => (
+        // Tabs have no native header. The tab bar owns the bottom safe area.
+        <SafeAreaView edges={['top', 'left', 'right']} style={{ flex: 1, backgroundColor: colors.background }}>
+          {children}
+        </SafeAreaView>
+      )}
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.muted,
-        tabBarLabelStyle: { fontSize: 10, fontWeight: '700' },
-        tabBarStyle: { height: 64, paddingBottom: 8, paddingTop: 6, borderTopColor: colors.border, backgroundColor: colors.surface },
+        tabBarLabelStyle: { fontSize: 12, fontWeight: '700' },
+        tabBarStyle: { minHeight: 64 + insets.bottom, paddingBottom: Math.max(insets.bottom, 8), paddingTop: 6, borderTopColor: colors.border, backgroundColor: colors.surface },
+        tabBarItemStyle: { minHeight: 48 },
         tabBarIcon: ({ focused, color, size }) => {
           const [active, inactive] = TAB_ICONS[route.name];
           return <Ionicons name={focused ? active : inactive} size={size - 2} color={color} />;
@@ -71,9 +79,6 @@ function MainTabs() {
       <Tabs.Screen name="StopSearch" component={StopSearchScreen} options={{ tabBarLabel: 'Tìm trạm', tabBarAccessibilityLabel: 'Tìm trạm' }} />
       <Tabs.Screen name="RouteSearch" component={RouteSearchScreen} options={{ tabBarLabel: 'Tuyến xe', tabBarAccessibilityLabel: 'Tra cứu tuyến xe' }} />
       <Tabs.Screen name="Favorites" component={FavoritesScreen} options={{ tabBarLabel: 'Yêu thích', tabBarAccessibilityLabel: 'Yêu thích' }} />
-      {isAdmin ? (
-        <Tabs.Screen name="Admin" component={AdminScreen} options={{ tabBarLabel: 'Quản lý', tabBarAccessibilityLabel: 'Quản lý dữ liệu GTFS' }} />
-      ) : null}
       <Tabs.Screen name="Account" component={AccountScreen} options={{ tabBarLabel: 'Tài khoản', tabBarAccessibilityLabel: 'Tài khoản' }} />
     </Tabs.Navigator>
   );
@@ -121,9 +126,11 @@ function RootNavigator() {
         <Stack.Screen name="JourneyPlanner" component={JourneyPlannerScreen} options={{ title: 'Tìm đường' }} />
         <Stack.Screen name="StopDetails" component={StopDetailsScreen} options={{ title: 'Giờ xe' }} />
         <Stack.Screen name="RouteDetails" component={RouteDetailsScreen} options={{ title: 'Chi tiết tuyến' }} />
+        <Stack.Screen name="TripSearch" component={TripSearchScreen} options={{ title: 'Tra cứu chuyến' }} />
         <Stack.Screen name="TripDetails" component={TripDetailsScreen} options={{ title: 'Lộ trình chuyến' }} />
         {isAdmin ? (
           <Stack.Group>
+            <Stack.Screen name="Admin" component={AdminScreen} options={{ title: 'Quản lý dữ liệu' }} />
             <Stack.Screen name="VersionDetails" component={VersionDetailsScreen} options={{ title: 'Chi tiết phiên bản' }} />
             <Stack.Screen name="CompareVersions" component={CompareVersionsScreen} options={{ title: 'So sánh phiên bản' }} />
             <Stack.Screen name="SavedQueries" component={SavedQueriesScreen} options={{ title: 'Truy vấn mẫu' }} />
@@ -137,10 +144,12 @@ function RootNavigator() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <QueryClientProvider client={queryClient}>
-        <RootNavigator />
-      </QueryClientProvider>
-    </AuthProvider>
+    <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+      <AuthProvider>
+        <QueryClientProvider client={queryClient}>
+          <RootNavigator />
+        </QueryClientProvider>
+      </AuthProvider>
+    </SafeAreaProvider>
   );
 }

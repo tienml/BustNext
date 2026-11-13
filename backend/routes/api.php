@@ -14,6 +14,8 @@ use App\Http\Controllers\Api\TripController;
 use App\Models\Dataset;
 use App\Models\DatasetVersion;
 use App\Models\SavedQuery;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 
@@ -80,15 +82,24 @@ Route::prefix('v1')->group(function (): void {
     Route::prefix('datasets/{dataset}')->group(function (): void {
         Route::get('/stops', [StopController::class, 'index']);
         Route::get('/stops/nearby', [StopController::class, 'nearby']);
-        Route::get('/stops/{stopId}', [StopController::class, 'show']);
-        Route::get('/stops/{stopId}/departures', [StopController::class, 'departures']);
+        // Laravel dispatches route parameters positionally: dataset precedes
+        // the GTFS identifier here, while the shared actions take it last.
+        Route::get('/stops/{stopId}', static fn (Request $request, Dataset $dataset, string $stopId): JsonResponse =>
+            app(StopController::class)->show($request, $stopId, $dataset));
+        Route::get('/stops/{stopId}/departures', static fn (Request $request, Dataset $dataset, string $stopId): JsonResponse =>
+            app(StopController::class)->departures($request, $stopId, $dataset));
 
         Route::get('/routes', [RouteController::class, 'index']);
-        Route::get('/routes/{routeId}', [RouteController::class, 'show']);
-        Route::get('/routes/{routeId}/trips', [RouteController::class, 'trips']);
+        Route::get('/routes/{routeId}', static fn (Request $request, Dataset $dataset, string $routeId): JsonResponse =>
+            app(RouteController::class)->show($request, $routeId, $dataset));
+        Route::get('/routes/{routeId}/trips', static fn (Request $request, Dataset $dataset, string $routeId): JsonResponse =>
+            app(RouteController::class)->trips($request, $routeId, $dataset));
 
-        Route::get('/trips/{tripId}', [TripController::class, 'show']);
-        Route::get('/trips/{tripId}/stop-times', [TripController::class, 'stopTimes']);
+        Route::get('/trips', [TripController::class, 'index']);
+        Route::get('/trips/{tripId}', static fn (Request $request, Dataset $dataset, string $tripId): JsonResponse =>
+            app(TripController::class)->show($request, $tripId, $dataset));
+        Route::get('/trips/{tripId}/stop-times', static fn (Request $request, Dataset $dataset, string $tripId): JsonResponse =>
+            app(TripController::class)->stopTimes($request, $tripId, $dataset));
     });
 
     /* ----------------------- active-version lookups ---------------------- */
@@ -103,6 +114,7 @@ Route::prefix('v1')->group(function (): void {
         Route::get('/routes/{routeId}', [RouteController::class, 'show']);
         Route::get('/routes/{routeId}/trips', [RouteController::class, 'trips']);
 
+        Route::get('/trips', [TripController::class, 'index']);
         Route::get('/trips/{tripId}', [TripController::class, 'show']);
         Route::get('/trips/{tripId}/stop-times', [TripController::class, 'stopTimes']);
     });

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api;
 
 use App\Models\Dataset;
+use App\Services\ActiveServiceIds;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -17,6 +18,62 @@ use Illuminate\Support\Facades\DB;
  */
 final class TripController
 {
+    public function __construct(private readonly ActiveServiceIds $activeServices)
+    {
+    }
+
+    public function index(Request $request, ?Dataset $dataset = null): JsonResponse
+    {
+        $validated = $request->validate([
+            'q' => ['nullable', 'string', 'max:120'],
+            'route_id' => ['nullable', 'string', 'max:255'],
+            'route_type' => ['nullable', 'integer', 'between:0,12'],
+            'direction_id' => ['nullable', 'integer', 'in:0,1'],
+            'date' => ['nullable', 'date_format:Y-m-d'],
+            'limit' => ['nullable', 'integer', 'min:1', 'max:200'],
+        ]);
+        $version = $this->resolveVersion($dataset);
+        if ($version === null) {
+            return $this->noActiveVersion();
+        }
+
+        $query = trim($validated['q'] ?? '');
+        $serviceIds = isset($validated['date'])
+            ? $this->activeServices->forDate((int) $version->id, $validated['date'])
+            : null;
+        $trips = DB::table('trips as t')
+            ->join('routes as r', function ($join): void {
+                $join->on('r.dataset_version_id', '=', 't.dataset_version_id')
+                    ->on('r.route_id', '=', 't.route_id');
+            })
+            ->where('t.dataset_version_id', $version->id)
+            ->when($query !== '', fn ($builder) => $builder->where(fn ($q) => $q
+                ->where('t.trip_id', 'like', "%{$query}%")
+                ->orWhere('t.headsign', 'like', "%{$query}%")
+                ->orWhere('r.route_id', 'like', "%{$query}%")
+                ->orWhere('r.short_name', 'like', "%{$query}%")
+                ->orWhere('r.long_name', 'like', "%{$query}%")))
+            ->when(isset($validated['route_id']), fn ($builder) => $builder->where('t.route_id', $validated['route_id']))
+            ->when(isset($validated['route_type']), fn ($builder) => $builder->where('r.route_type', (int) $validated['route_type']))
+            ->when(isset($validated['direction_id']), fn ($builder) => $builder->where('t.direction_id', (int) $validated['direction_id']))
+            ->when($serviceIds !== null, fn ($builder) => $builder->whereIn('t.service_id', $serviceIds))
+            ->orderBy('t.trip_id')
+            ->limit((int) ($validated['limit'] ?? 50))
+            ->get([
+                't.trip_id', 't.route_id', 't.service_id', 't.headsign', 't.direction_id',
+                'r.short_name', 'r.long_name', 'r.route_type',
+            ]);
+
+        return response()->json([
+            'data' => $trips,
+            'meta' => [
+                'count' => $trips->count(), 'query' => $query, 'version' => $version->id,
+                'timezone' => $version->timezone,
+                'date' => $validated['date'] ?? null,
+            ],
+        ]);
+    }
+
     public function show(Request $request, string $tripId, ?Dataset $dataset = null): JsonResponse
     {
         $version = $this->resolveVersion($dataset);

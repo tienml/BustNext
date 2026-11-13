@@ -44,6 +44,11 @@ final class GtfsImportTest extends TestCase
     public function test_invalid_gtfs_zip_becomes_failed_and_active_version_survives(): void
     {
         $dataset = Dataset::query()->where('slug', 'hanoi-bus')->firstOrFail();
+        $activeVersionId = $dataset->active_version_id;
+        $lookupUrl = '/api/v1/datasets/' . $dataset->id . '/stops/KM001/departures?date=2026-10-22&time=01:00:00';
+        $before = $this->getJson($lookupUrl)->assertOk()->json();
+        self::assertNotEmpty($before['data'], 'The baseline must exercise a real departure');
+
         $response = $this->post('/api/v1/datasets/' . $dataset->id . '/versions', [
             'file' => $this->fixtureZip('invalid-references'),
             'label' => 'Invalid fixture',
@@ -57,6 +62,14 @@ final class GtfsImportTest extends TestCase
         $versions = $versionsResponse->json('data.data');
         self::assertSame('failed', $versions[0]['status']);
         self::assertSame('active', $versions[1]['status']);
+        self::assertSame($activeVersionId, $dataset->fresh()->active_version_id);
+        self::assertSame($before, $this->getJson($lookupUrl)->assertOk()->json());
+
+        $failedId = (int) $response->json('version.id');
+        $this->postJson("/api/v1/versions/{$failedId}/activate")
+            ->assertStatus(422)->assertJsonPath('errors.0.code', 'VERSION_NOT_READY');
+        self::assertSame($activeVersionId, $dataset->fresh()->active_version_id);
+        self::assertSame($before, $this->getJson($lookupUrl)->assertOk()->json());
     }
 
     private function fixtureZip(string $fixture): UploadedFile

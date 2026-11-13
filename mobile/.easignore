@@ -1,0 +1,64 @@
+# EAS uses this file instead of .gitignore; keep required source, assets,
+# app configuration, package.json and package-lock.json in the archive.
+
+# Dependencies and generated Expo/build output
+node_modules/
+.expo/
+.expo-shared/
+.expo-export*/
+dist/
+web-build/
+coverage/
+*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Local environment files must never be uploaded (including examples).
+# Configure public build-time values using the EAS preview environment.
+.env
+.env.*
+**/.env
+**/.env.*
+
+# Signing material, service-account files and local credentials
+credentials.json
+**/credentials.json
+credentials/
+**/credentials/
+secrets/
+**/secrets/
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.pem
+*.key
+*.mobileprovision
+*.p8
+*.p10
+*.p11
+*.p7b
+*.p7c
+*service-account*.json
+*service_account*.json
+*.apk
+*.aab
+*.ipa
+
+# Temporary export archives and staging directories (not application assets)
+/exports/
+/export/
+/tmp/
+/temp/
+*.tmp
+*.bak
+
+# Repository, editor and local automation state
+.git/
+.claude/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp

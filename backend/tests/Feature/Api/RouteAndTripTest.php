@@ -102,4 +102,49 @@ final class RouteAndTripTest extends TestCase
 
         $response->assertOk()->assertJsonPath('meta.count', 6);
     }
+
+    public function test_all_dataset_scoped_lookups_match_the_active_global_api(): void
+    {
+        $dataset = \App\Models\Dataset::query()->where('slug', 'hanoi-bus')->firstOrFail();
+
+        foreach ($this->scopedLookupPaths() as $path) {
+            $global = $this->getJson('/api/v1/gtfs' . $path)->assertOk()->json();
+            $scoped = $this->getJson("/api/v1/datasets/{$dataset->id}" . $path)
+                ->assertOk()->assertJsonPath('meta.version', $dataset->active_version_id)->json();
+
+            self::assertSame($global, $scoped, $path);
+        }
+    }
+
+    public function test_scoped_lookups_do_not_fall_back_to_another_active_dataset(): void
+    {
+        $dataset = \App\Models\Dataset::query()->create([
+            'slug' => 'no-active-version',
+            'name' => 'No active version',
+            'timezone' => 'Asia/Ho_Chi_Minh',
+        ]);
+
+        foreach ($this->scopedLookupPaths() as $path) {
+            $this->getJson('/api/v1/gtfs' . $path)->assertOk();
+            $this->getJson("/api/v1/datasets/{$dataset->id}" . $path)
+                ->assertNotFound()->assertJsonPath('errors.0.code', 'NO_ACTIVE_VERSION');
+        }
+    }
+
+    /** @return list<string> */
+    private function scopedLookupPaths(): array
+    {
+        return [
+            '/stops',
+            '/stops/nearby?lat=21.0285&lon=105.8242&radius=1000',
+            '/stops/KM001',
+            '/stops/KM001/departures?date=2026-10-22&time=01:00:00',
+            '/routes',
+            '/routes/01',
+            '/routes/01/trips?date=2026-10-22',
+            '/trips?date=2026-10-22',
+            '/trips/TRIP_07_NIGHT',
+            '/trips/TRIP_07_NIGHT/stop-times',
+        ];
+    }
 }

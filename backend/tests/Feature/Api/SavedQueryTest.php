@@ -42,7 +42,18 @@ final class SavedQueryTest extends TestCase
 
         // v2 removes T100 and adds T101 at 09:31 on the same stop.
         $v2 = $this->import('dataset-a-v2');
+        $this->getJson("/api/v1/versions/compare?base={$v1}&target={$v2}")
+            ->assertOk()
+            ->assertJsonPath('data.summary.trips_added', 2)
+            ->assertJsonPath('data.summary.trips_removed', 1)
+            ->assertJsonPath('data.summary.trips_changed', 1);
+        // Import and comparison alone must not change the saved query's version.
+        $this->postJson("/api/v1/queries/{$queryId}/run")
+            ->assertOk()->assertJsonPath('data.version', $v1)
+            ->assertJsonPath('data.data.0.trip_id', 'T100');
+        self::assertSame($v1, (int) $this->dataset->fresh()->active_version_id);
         $this->postJson("/api/v1/versions/{$v2}/activate")->assertOk();
+        self::assertSame($v2, (int) $this->dataset->fresh()->active_version_id);
 
         $this->postJson("/api/v1/datasets/{$this->dataset->id}/queries/run")
             ->assertOk()

@@ -29,9 +29,15 @@ final class RouteController
             return $this->noActiveVersion();
         }
 
-        $query = trim((string) $request->query('q', ''));
-        $routeType = $request->query('route_type');
-        $limit = min((int) $request->query('limit', 100), 200);
+        $validated = $request->validate([
+            'q' => ['nullable', 'string', 'max:120'],
+            'route_type' => ['nullable', 'integer', 'between:0,12'],
+            'agency_id' => ['nullable', 'string', 'max:255'],
+            'limit' => ['nullable', 'integer', 'min:1', 'max:200'],
+        ]);
+        $query = trim($validated['q'] ?? '');
+        $routeType = $validated['route_type'] ?? null;
+        $limit = (int) ($validated['limit'] ?? 100);
 
         $routes = DB::table('routes as r')
             ->leftJoin('agencies as a', 'a.id', '=', 'r.agency_id')
@@ -42,6 +48,7 @@ final class RouteController
                 ->orWhere('r.long_name', 'like', "%{$query}%")
             ))
             ->when($routeType !== null, fn ($builder) => $builder->where('r.route_type', (int) $routeType))
+            ->when(isset($validated['agency_id']), fn ($builder) => $builder->where('a.agency_id', $validated['agency_id']))
             ->orderBy('r.short_name')
             ->limit($limit)
             ->get([
@@ -109,7 +116,12 @@ final class RouteController
      */
     public function trips(Request $request, string $routeId, ?Dataset $dataset = null): JsonResponse
     {
-        $validated = $request->validate(['date' => ['nullable', 'date_format:Y-m-d']]);
+        $validated = $request->validate([
+            'date' => ['nullable', 'date_format:Y-m-d'],
+            'q' => ['nullable', 'string', 'max:120'],
+            'direction_id' => ['nullable', 'integer', 'in:0,1'],
+            'limit' => ['nullable', 'integer', 'min:1', 'max:200'],
+        ]);
         $version = $this->resolveVersion($dataset);
         if ($version === null) {
             return $this->noActiveVersion();
@@ -158,6 +170,15 @@ final class RouteController
             ->where('t.dataset_version_id', $version->id)
             ->where('t.route_id', $routeId)
             ->whereIn('t.service_id', $serviceIds)
+            ->when(trim($validated['q'] ?? '') !== '', function ($builder) use ($validated): void {
+                $query = trim($validated['q']);
+                $builder->where(fn ($q) => $q->where('t.trip_id', 'like', "%{$query}%")
+                    ->orWhere('t.headsign', 'like', "%{$query}%"));
+            })
+            ->when(isset($validated['direction_id']), fn ($builder) => $builder->where('t.direction_id', (int) $validated['direction_id']))
+            ->orderBy('first_stop_time.departure_seconds')
+            ->orderBy('t.trip_id')
+            ->when(isset($validated['limit']), fn ($builder) => $builder->limit((int) $validated['limit']))
             ->get([
                 't.trip_id', 't.headsign', 't.direction_id', 't.service_id',
                 'first_stop_time.departure_seconds',

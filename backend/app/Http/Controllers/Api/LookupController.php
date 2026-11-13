@@ -24,9 +24,9 @@ final class LookupController
     }
 
     /**
-     * Unified search across stops and routes of the active version.
+     * Unified search across stops, routes and trips of the active version.
      *
-     * The home screen search box hits this endpoint: one query, both entity
+     * The home screen search box hits this endpoint: one query, all three entity
      * types, grouped so the client can render sections without extra calls.
      */
     public function search(Request $request): JsonResponse
@@ -46,7 +46,7 @@ final class LookupController
             ->first(['dataset_versions.id', 'dataset_versions.timezone']);
 
         if ($version === null) {
-            return response()->json(['data' => ['stops' => [], 'routes' => []], 'meta' => ['version' => null]]);
+            return response()->json(['data' => ['stops' => [], 'routes' => [], 'trips' => []], 'meta' => ['version' => null]]);
         }
 
         $stops = DB::table('stops')
@@ -70,13 +70,29 @@ final class LookupController
             ->limit($limit)
             ->get(['r.route_id', 'r.short_name', 'r.long_name', 'r.route_type', 'a.name as agency_name']);
 
+        $trips = DB::table('trips as t')
+            ->join('routes as r', function ($join): void {
+                $join->on('r.dataset_version_id', '=', 't.dataset_version_id')
+                    ->on('r.route_id', '=', 't.route_id');
+            })
+            ->where('t.dataset_version_id', $version->id)
+            ->where(fn ($builder) => $builder
+                ->where('t.trip_id', 'like', "%{$query}%")
+                ->orWhere('t.headsign', 'like', "%{$query}%")
+                ->orWhere('r.route_id', 'like', "%{$query}%")
+                ->orWhere('r.short_name', 'like', "%{$query}%")
+                ->orWhere('r.long_name', 'like', "%{$query}%"))
+            ->orderBy('t.trip_id')
+            ->limit($limit)
+            ->get(['t.trip_id', 't.route_id', 't.headsign', 't.direction_id', 't.service_id', 'r.short_name', 'r.long_name', 'r.route_type']);
+
         return response()->json([
-            'data' => ['stops' => $stops, 'routes' => $routes],
+            'data' => ['stops' => $stops, 'routes' => $routes, 'trips' => $trips],
             'meta' => [
                 'query' => $query,
                 'version' => $version->id,
                 'timezone' => $version->timezone,
-                'counts' => ['stops' => $stops->count(), 'routes' => $routes->count()],
+                'counts' => ['stops' => $stops->count(), 'routes' => $routes->count(), 'trips' => $trips->count()],
             ],
         ]);
     }

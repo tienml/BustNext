@@ -1,0 +1,28 @@
+<?php
+
+declare(strict_types=1);
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        Schema::create('password_reset_otps', function (Blueprint $table): void {
+            $table->foreignId('user_id')->primary()->constrained()->cascadeOnDelete();
+            $table->string('email', 255);
+            $table->string('code_hash')->nullable();
+            $table->unsignedTinyInteger('attempts')->default(0);
+            $table->timestamp('expires_at');
+            // Retained after consume/delivery failure to enforce the resend cooldown.
+            $table->timestamp('sent_at');
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::dropIfExists('password_reset_otps');
+    }
+};

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { apiClient, ApiError } from '../api/client';
+import { useQuery } from '@tanstack/react-query';
+import { apiClient, ApiError, type TripSearchFilters } from '../api/client';
 
 const retryTransient = (failureCount: number, error: unknown) => {
   if (error instanceof ApiError && error.status !== undefined && error.status < 500) return false;
@@ -23,20 +23,18 @@ export function useStopSearch(query: string) {
     queryFn: ({ signal }) => apiClient.searchStops(debounced, 20, signal),
     enabled: debounced.length > 1,
     staleTime: 30_000,
-    placeholderData: keepPreviousData,
     retry: retryTransient,
     networkMode: 'offlineFirst',
   });
 }
 
-export function useRouteSearch(query: string) {
+export function useRouteSearch(query: string, routeType?: number) {
   const debounced = useDebouncedValue(query.trim(), 300);
   return useQuery({
-    queryKey: ['routes', debounced],
-    queryFn: ({ signal }) => apiClient.searchRoutes(debounced, undefined, 20, signal),
-    enabled: debounced.length > 0,
+    queryKey: ['routes', debounced, routeType],
+    queryFn: ({ signal }) => apiClient.searchRoutes(debounced, routeType, 20, signal),
+    enabled: debounced.length > 0 || routeType !== undefined,
     staleTime: 30_000,
-    placeholderData: keepPreviousData,
     retry: retryTransient,
     networkMode: 'offlineFirst',
   });
@@ -49,7 +47,6 @@ export function useUnifiedSearch(query: string) {
     queryFn: ({ signal }) => apiClient.unifiedSearch(debounced, 10, signal),
     enabled: debounced.length > 1,
     staleTime: 30_000,
-    placeholderData: keepPreviousData,
     retry: retryTransient,
     networkMode: 'offlineFirst',
   });
@@ -66,13 +63,18 @@ export function useStopDetails(stopId: string) {
   });
 }
 
-export function useNextDepartures(stopId: string, date: string, after: string) {
-  return useQuery({
-    queryKey: ['departures', stopId, date, after],
+export function useNextDepartures(stopId: string, date: string, after: string, active = true, live = false) {
+  return useQuery<Awaited<ReturnType<typeof apiClient.nextDepartures>>>({
+    queryKey: ['departures', stopId, date, after, live],
+    // Only a live clock tick may reuse rows. Never carry another stop/date or
+    // an explicitly selected lookup into a new context.
+    placeholderData: (previous, query) => live && query?.queryKey[1] === stopId
+      && query.queryKey[2] === date && query.queryKey[4] === true ? previous : undefined,
     queryFn: ({ signal }) => apiClient.nextDepartures(stopId, date, after, 10, signal),
-    enabled: Boolean(stopId && date && after),
+    enabled: active && Boolean(stopId && date && after),
     staleTime: 15_000,
-    refetchInterval: 30_000,
+    // The screen advances the current-time query key; never poll a frozen time.
+    refetchInterval: false,
     retry: retryTransient,
     networkMode: 'offlineFirst',
   });
@@ -106,6 +108,20 @@ export function useRouteTrips(routeId: string, date: string) {
     queryFn: ({ signal }) => apiClient.getRouteTrips(routeId, date, signal),
     enabled: Boolean(routeId && date),
     staleTime: 60_000,
+    retry: retryTransient,
+    networkMode: 'offlineFirst',
+  });
+}
+
+export function useTripSearch(filters: TripSearchFilters, active = true) {
+  const q = useDebouncedValue(filters.q?.trim() ?? '');
+  const routeId = filters.route_id?.trim() ?? '';
+  const normalized = { ...filters, q, route_id: routeId };
+  return useQuery({
+    queryKey: ['trip-search', normalized],
+    queryFn: ({ signal }) => apiClient.searchTrips(normalized, signal),
+    enabled: active,
+    staleTime: 30_000,
     retry: retryTransient,
     networkMode: 'offlineFirst',
   });

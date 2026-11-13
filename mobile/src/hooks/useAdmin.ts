@@ -36,8 +36,7 @@ export function useVersions(datasetId?: number) {
   const api = useAdminClient();
   return useQuery({
     queryKey: adminKeys.versions(datasetId ?? 0),
-    queryFn: ({ signal }) => api.versions(datasetId as number, signal),
-    select: (response) => response.data.data,
+    queryFn: ({ signal }) => api.allVersions(datasetId as number, signal),
     enabled: datasetId !== undefined,
     retry: retryTransient,
   });

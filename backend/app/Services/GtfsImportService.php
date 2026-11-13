@@ -51,6 +51,9 @@ final class GtfsImportService
 
             DB::transaction(function () use ($version, $parsed, $warnings): void {
                 $this->persistRows($version, $parsed['rows']);
+                foreach ($warnings as $warning) {
+                    $version->validationErrors()->create($warning->toArray());
+                }
                 $version->update([
                     'status' => 'ready',
                     'stats' => $parsed['stats'],
@@ -84,15 +87,19 @@ final class GtfsImportService
         $agencyMap = [];
 
         foreach ($rows['agency.txt'] ?? [] as $row) {
+            // GTFS permits an omitted agency_id for a single agency. The empty
+            // external ID fits the existing non-null schema without inventing
+            // an ID that a route could accidentally reference.
+            $externalAgencyId = trim($row['agency_id'] ?? '');
             $id = DB::table('agencies')->insertGetId([
                 'dataset_version_id' => $versionId,
-                'agency_id' => $this->required($row, 'agency_id', 'agency.txt'),
+                'agency_id' => $externalAgencyId,
                 'name' => $this->required($row, 'agency_name', 'agency.txt'),
                 'timezone' => $this->required($row, 'agency_timezone', 'agency.txt'),
                 'created_at' => $now,
                 'updated_at' => $now,
             ]);
-            $agencyMap[$row['agency_id']] = $id;
+            $agencyMap[$externalAgencyId] = $id;
         }
 
         $defaultAgencyId = count($agencyMap) === 1 ? array_values($agencyMap)[0] : null;
@@ -100,11 +107,15 @@ final class GtfsImportService
         foreach ($rows['routes.txt'] ?? [] as $row) {
             $externalRouteId = $this->required($row, 'route_id', 'routes.txt');
             $agencyExternalId = trim($row['agency_id'] ?? '');
+            $agencyId = $agencyExternalId === '' ? $defaultAgencyId : ($agencyMap[$agencyExternalId] ?? null);
+            if ($agencyId === null) {
+                throw new RuntimeException('Route references a missing or unknown agency');
+            }
             $routeMap[$externalRouteId] = true;
             DB::table('routes')->insert([
                 'dataset_version_id' => $versionId,
                 'route_id' => $externalRouteId,
-                'agency_id' => $agencyMap[$agencyExternalId] ?? $defaultAgencyId,
+                'agency_id' => $agencyId,
                 'short_name' => $this->nullable($row['route_short_name'] ?? null),
                 'long_name' => $this->nullable($row['route_long_name'] ?? null),
                 'route_type' => (int) ($row['route_type'] ?? 3),

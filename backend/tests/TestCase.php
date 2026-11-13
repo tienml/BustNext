@@ -48,7 +48,7 @@ abstract class TestCase extends BaseTestCase
     }
 
     /** Zip one folder of fixtures/gtfs into an upload, as an operator would send it. */
-    protected function gtfsFixtureZip(string $fixture): \Illuminate\Http\UploadedFile
+    protected function gtfsFixtureZip(string $fixture, array $overrides = []): \Illuminate\Http\UploadedFile
     {
         $path = tempnam(sys_get_temp_dir(), 'busfast-feed-');
         self::assertNotFalse($path);
@@ -56,7 +56,12 @@ abstract class TestCase extends BaseTestCase
         $archive = new \ZipArchive();
         self::assertSame(true, $archive->open($path, \ZipArchive::OVERWRITE));
         foreach (glob(dirname(__DIR__, 2) . '/fixtures/gtfs/' . $fixture . '/*.txt') ?: [] as $file) {
-            $archive->addFile($file, basename($file));
+            if (!array_key_exists(basename($file), $overrides)) {
+                $archive->addFile($file, basename($file));
+            }
+        }
+        foreach ($overrides as $name => $content) {
+            $archive->addFromString($name, $content);
         }
         $archive->close();
 

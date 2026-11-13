@@ -6,6 +6,7 @@ namespace Tests\Feature\Api;
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Notification;
 use Tests\TestCase;
 
 final class AccountTest extends TestCase
@@ -53,6 +54,7 @@ final class AccountTest extends TestCase
 
     public function test_password_reset_request_does_not_reveal_whether_email_exists(): void
     {
+        Notification::fake();
         $user = User::query()->create([
             'name' => 'Nguyen Van A',
             'email' => 'a@example.test',

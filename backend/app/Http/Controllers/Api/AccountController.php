@@ -9,8 +9,7 @@ use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Password;
+use App\Services\PasswordResetOtpService;
 use Illuminate\Validation\Rule;
 
 final class AccountController
@@ -59,16 +58,12 @@ final class AccountController
     public function forgotPassword(Request $request): JsonResponse
     {
         $validated = $request->validate(['email' => ['required', 'email']]);
-        $status = Password::sendResetLink($validated);
-
-        if ($status !== Password::RESET_LINK_SENT) {
-            Log::warning('Password reset request was not sent', [
-                'status' => $status,
-            ]);
-        }
+        app(PasswordResetOtpService::class)->send($validated['email']);
 
         return response()->json(['data' => [
             'message' => 'Nếu email tồn tại, hướng dẫn đặt lại mật khẩu đã được gửi.',
+            'expires_in' => PasswordResetOtpService::EXPIRES_SECONDS,
+            'resend_after' => PasswordResetOtpService::RESEND_SECONDS,
         ]]);
     }
 
@@ -76,19 +71,19 @@ final class AccountController
     {
         $validated = $request->validate([
             'email' => ['required', 'email'],
-            'token' => ['required', 'string'],
+            // Keep the API field name for existing clients; its value is now OTP6.
+            'token' => ['required', 'string', 'regex:/\A[0-9]{6}\z/'],
             'password' => ['required', 'string', 'min:8', 'confirmed'],
         ]);
 
-        $status = Password::reset($validated, function (User $user, string $password): void {
-            $user->forceFill(['password' => $password])->save();
-            $user->tokens()->delete();
-        });
+        $reset = app(PasswordResetOtpService::class)->reset(
+            $validated['email'], $validated['token'], $validated['password'],
+        );
 
-        if ($status !== Password::PASSWORD_RESET) {
+        if (!$reset) {
             return response()->json(['errors' => [[
                 'code' => 'INVALID_PASSWORD_RESET',
-                'message' => __($status),
+                'message' => 'Mã OTP không hợp lệ, đã hết hạn hoặc đã dùng. Vui lòng yêu cầu mã mới.',
             ]]], 422);
         }
 

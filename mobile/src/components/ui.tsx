@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import type { ComponentProps, ReactNode } from 'react';
 import { useEffect, useRef } from 'react';
-import { Animated, Pressable, StyleSheet, Text, TextInput, View, type StyleProp, type TextInputProps, type ViewStyle } from 'react-native';
+import { AccessibilityInfo, Animated, Pressable, StyleSheet, Text, TextInput, View, type StyleProp, type TextInputProps, type ViewStyle } from 'react-native';
 import { radius, spacing, useTheme, type Palette } from '../theme';
 
 export type IconName = ComponentProps<typeof Ionicons>['name'];
@@ -105,7 +105,7 @@ export function SearchField(props: TextInputProps & { icon?: IconName }) {
         {...rest}
       />
       {rest.value ? (
-        <Pressable accessibilityRole="button" accessibilityLabel="Xóa nội dung" hitSlop={10} onPress={() => rest.onChangeText?.('')}>
+        <Pressable accessibilityRole="button" accessibilityLabel={`Xóa ${rest.accessibilityLabel ?? 'nội dung'}`} onPress={() => rest.onChangeText?.('')} style={({ pressed }) => [styles.clear, pressed && styles.pressed]}>
           <Icon name="close-circle" size={18} color={colors.muted} />
         </Pressable>
       ) : null}
@@ -152,8 +152,21 @@ export function LoadingState({ rows = 3, height = 68 }: { rows?: number; height?
       Animated.timing(opacity, { toValue: 1, duration: 650, useNativeDriver: true }),
       Animated.timing(opacity, { toValue: 0.5, duration: 650, useNativeDriver: true }),
     ]));
-    loop.start();
-    return () => loop.stop();
+    let disposed = false;
+    let preferenceChanged = false;
+    const applyMotionPreference = (reduce: boolean) => {
+      loop.stop();
+      if (reduce) opacity.setValue(0.7);
+      else loop.start();
+    };
+    const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', (reduce) => {
+      preferenceChanged = true;
+      applyMotionPreference(reduce);
+    });
+    void AccessibilityInfo.isReduceMotionEnabled().then((reduce) => {
+      if (!disposed && !preferenceChanged) applyMotionPreference(reduce);
+    }).catch(() => { if (!disposed) opacity.setValue(0.7); });
+    return () => { disposed = true; subscription.remove(); loop.stop(); };
   }, [opacity]);
   return (
     <View accessibilityLabel="Đang tải" accessibilityLiveRegion="polite">
@@ -233,6 +246,7 @@ const styles = StyleSheet.create({
   badgeText: { fontSize: 14, fontWeight: '800' },
   field: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: radius.md, minHeight: 52, paddingHorizontal: 14, gap: 10 },
   fieldInput: { flex: 1, fontSize: 16, minHeight: 50 },
+  clear: { minWidth: 48, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
   button: { borderRadius: radius.md, minHeight: 50, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 },
   buttonText: { fontWeight: '800', fontSize: 15 },
   disabled: { opacity: 0.55 },

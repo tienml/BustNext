@@ -1,3 +1,5 @@
+import { requestJson, type JsonResponse } from './transport';
+
 export type ApiErrorItem = { code?: string; message?: string };
 
 export type ApiEnvelope<T> = {
@@ -52,12 +54,22 @@ export type Trip = {
   headsign?: string | null;
   /** Older field name kept for compatibility. */
   trip_headsign?: string | null;
-  direction_id?: number;
+  direction_id?: number | null;
+  route_type?: number;
   departure_time?: string | null;
   short_name?: string | null;
   long_name?: string | null;
   agency_name?: string | null;
   route_short_name?: string;
+};
+
+export type TripSearchFilters = {
+  q?: string;
+  route_id?: string;
+  route_type?: number;
+  direction_id?: number;
+  date?: string;
+  limit?: number;
 };
 
 export type StopTime = {
@@ -80,6 +92,7 @@ export type TripDetailResponse = ApiEnvelope<Trip> & { stop_times: StopTime[] };
 export type UnifiedSearch = {
   stops: Stop[];
   routes: Route[];
+  trips: Trip[];
 };
 
 export type Health = {
@@ -303,8 +316,7 @@ export class ApiClient {
     options: { timeoutMs?: number; acceptStatuses?: number[] } = {},
   ): Promise<ApiEnvelope<T>> {
     const isForm = typeof FormData !== 'undefined' && body instanceof FormData;
-    // Without a timeout a dead tunnel leaves fetch hanging until the OS gives
-    // up, and whatwg-fetch then throws a RangeError for status 0.
+    // Bound network wait; the native transport rejects status 0 without Response.
     const controller = new AbortController();
     let timedOut = false;
     const timer = setTimeout(() => {
@@ -313,10 +325,11 @@ export class ApiClient {
     }, options.timeoutMs ?? REQUEST_TIMEOUT_MS);
     const forwardAbort = () => controller.abort();
     signal?.addEventListener('abort', forwardAbort);
+    if (signal?.aborted) controller.abort();
 
-    let response: Response;
+    let response: JsonResponse;
     try {
-      response = await fetch(this.url(path), {
+      response = await requestJson(this.url(path), {
         method,
         headers: {
           Accept: 'application/json',
@@ -397,6 +410,14 @@ export class ApiClient {
     return this.get<Trip[]>(`/v1/gtfs/routes/${encodeURIComponent(routeId)}/trips?${params}`, signal);
   }
 
+  searchTrips(filters: TripSearchFilters, signal?: AbortSignal) {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(filters)) {
+      if (value !== undefined && value !== '') params.set(key, String(value));
+    }
+    return this.get<Trip[]>(`/v1/gtfs/trips?${params}`, signal);
+  }
+
   getTrip(tripId: string, signal?: AbortSignal) {
     return this.get<TripDetailResponse['data']>(`/v1/gtfs/trips/${encodeURIComponent(tripId)}`, signal) as Promise<TripDetailResponse>;
   }
@@ -426,7 +447,7 @@ export class ApiClient {
   }
 
   forgotPassword(email: string) {
-    return this.post<{ message: string }>('/v1/auth/forgot-password', { email });
+    return this.post<{ message: string; expires_in: number; resend_after: number }>('/v1/auth/forgot-password', { email });
   }
 
   resetPassword(email: string, token: string, password: string, passwordConfirmation: string) {
@@ -465,8 +486,18 @@ export class ApiClient {
     return this.get<Paginated<Dataset>>('/v1/datasets', signal);
   }
 
-  versions(datasetId: number, signal?: AbortSignal) {
-    return this.get<Paginated<DatasetVersion>>(`/v1/datasets/${datasetId}/versions`, signal);
+  versions(datasetId: number, signal?: AbortSignal, page = 1) {
+    return this.get<Paginated<DatasetVersion>>(`/v1/datasets/${datasetId}/versions?page=${page}`, signal);
+  }
+
+  async allVersions(datasetId: number, signal?: AbortSignal): Promise<DatasetVersion[]> {
+    const first = await this.versions(datasetId, signal);
+    const versions = [...first.data.data];
+    for (let page = 2; page <= first.data.last_page; page += 1) {
+      const response = await this.versions(datasetId, signal, page);
+      versions.push(...response.data.data);
+    }
+    return [...new Map(versions.map((version) => [version.id, version])).values()];
   }
 
   validationIssues(versionId: number, page = 1, signal?: AbortSignal) {

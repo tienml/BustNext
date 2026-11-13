@@ -2,13 +2,15 @@ import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { RouteProp } from '@react-navigation/native';
 import { useRoute } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { SavedQuery, SavedQueryRun, SavedQueryType } from '../api/client';
 import { useCreateSavedQuery, useDeleteSavedQuery, useRunSavedQueries, useSavedQueries } from '../hooks/useAdmin';
 import type { RootStackParamList } from '../navigation/types';
 import { getTransitDateTime } from '../utils/transitTime';
 import { radius, spacing, useTheme } from '../theme';
 import { Button, Card, EmptyState, ErrorState, Icon, LoadingState, Notice, SearchField, SectionTitle } from '../components/ui';
-import { ChipPicker, confirmAction, formatDateTime } from '../components/admin';
+import { ChipPicker, confirmAction, Disclosure, formatDateTime } from '../components/admin';
+import { WorkspaceFact, WorkspaceHeading } from '../components/AdminWorkspaceVisuals';
 
 type Field = { key: string; label: string; placeholder: string; required?: boolean };
 
@@ -46,13 +48,22 @@ const TYPES: Record<SavedQueryType, { label: string; fields: Field[] }> = {
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME = /^\d{1,2}:\d{2}:\d{2}$/;
 
-function describeParams(query: Pick<SavedQuery, 'params'>) {
-  return Object.entries(query.params).map(([key, value]) => `${key}=${value}`).join(' · ');
+function ScenarioParams({ query }: { query: SavedQuery }) {
+  const fields = TYPES[query.type]?.fields ?? [];
+  const entries = Object.entries(query.params);
+  const defaults = fields.filter((field) => !field.required && !Object.prototype.hasOwnProperty.call(query.params, field.key) && (field.key === 'date' || field.key === 'time'));
+  return <View>
+    {entries.map(([key, value]) => <WorkspaceFact key={key} label={fields.find((field) => field.key === key)?.label ?? key} value={String(value ?? '—')} />)}
+    {defaults.map((field) => <WorkspaceFact key={field.key} label={field.label} value={field.key === 'date' ? 'Hôm nay, khi chạy' : 'Thời điểm chạy'} />)}
+  </View>;
 }
 
 export function SavedQueriesScreen() {
   const { params } = useRoute<RouteProp<RootStackParamList, 'SavedQueries'>>();
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
+  const [feedback, setFeedback] = useState('');
+  const [fieldError, setFieldError] = useState('');
   const queries = useSavedQueries(params.datasetId);
   const create = useCreateSavedQuery(params.datasetId);
   const remove = useDeleteSavedQuery(params.datasetId);
@@ -67,20 +78,24 @@ export function SavedQueriesScreen() {
   const typeOptions = useMemo(() => (Object.keys(TYPES) as SavedQueryType[]).map((value) => ({ value, label: TYPES[value].label })), []);
 
   async function save() {
+    if (create.isPending) return;
     setFormError('');
+    setFieldError('');
+    setFeedback('');
+    const invalid = (key: string, message: string) => { setFieldError(key); setFormError(message); };
     const fields = TYPES[type].fields;
     const payload: Record<string, string | number> = {};
     for (const field of fields) {
       const value = (values[field.key] ?? '').trim();
       if (!value) {
-        if (field.required) return setFormError(`Thiếu “${field.label}”.`);
+        if (field.required) return invalid(field.key, `Thiếu “${field.label}”.`);
         continue;
       }
-      if (field.key === 'date' && !DATE.test(value)) return setFormError('Ngày phải có dạng YYYY-MM-DD.');
-      if (field.key === 'time' && !TIME.test(value)) return setFormError('Giờ phải có dạng HH:MM:SS, ví dụ 25:10:00.');
+      if (field.key === 'date' && (!DATE.test(value) || Number.isNaN(Date.parse(`${value}T00:00:00Z`)) || new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) !== value)) return invalid(field.key, 'Nhập ngày hợp lệ theo dạng YYYY-MM-DD.');
+      if (field.key === 'time' && (!TIME.test(value) || Number(value.split(':')[1]) > 59 || Number(value.split(':')[2]) > 59)) return invalid(field.key, 'Giờ phải có dạng HH:MM:SS, ví dụ 25:10:00; phút và giây từ 00 đến 59.');
       if (field.key === 'limit') {
         const limit = Number(value);
-        if (!Number.isInteger(limit) || limit < 1 || limit > 50) return setFormError('Số chuyến từ 1 đến 50.');
+        if (!Number.isInteger(limit) || limit < 1 || limit > 50) return invalid(field.key, 'Số chuyến từ 1 đến 50.');
         payload[field.key] = limit;
         continue;
       }
@@ -90,13 +105,16 @@ export function SavedQueriesScreen() {
       await create.mutateAsync({ name: name.trim() || TYPES[type].label, type, params: payload });
       setName('');
       setValues({});
+      setFeedback('Đã lưu truy vấn mẫu.');
     } catch (cause) {
       setFormError(cause instanceof Error ? cause.message : 'Không lưu được truy vấn.');
     }
   }
 
   async function run(queryId?: number) {
+    if (runner.isPending || remove.isPending) return;
     setRunError('');
+    setRuns((current) => queryId === undefined ? {} : Object.fromEntries(Object.entries(current).filter(([id]) => Number(id) !== queryId)));
     try {
       const results = await runner.mutateAsync(queryId);
       setRuns((current) => ({ ...current, ...Object.fromEntries(results.map((result) => [result.query.id, result])) }));
@@ -106,9 +124,14 @@ export function SavedQueriesScreen() {
   }
 
   async function onDelete(query: SavedQuery) {
+    if (remove.isPending || runner.isPending) return;
     if (!(await confirmAction('Xóa truy vấn?', query.name, 'Xóa'))) return;
+    setRunError('');
+    setFeedback('');
     try {
       await remove.mutateAsync(query.id);
+      setRuns((current) => Object.fromEntries(Object.entries(current).filter(([id]) => Number(id) !== query.id)));
+      setFeedback('Đã xóa truy vấn mẫu.');
     } catch (cause) {
       setRunError(cause instanceof Error ? cause.message : 'Không xóa được.');
     }
@@ -118,12 +141,15 @@ export function SavedQueriesScreen() {
   const failed = Object.values(runs).filter((result) => !result.ok).length;
 
   return (
-    <ScrollView style={{ backgroundColor: colors.background }} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+    <ScrollView style={{ backgroundColor: colors.background }} contentContainerStyle={[styles.content, { paddingBottom: spacing.lg + insets.bottom, paddingLeft: spacing.lg + insets.left, paddingRight: spacing.lg + insets.right }]} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
+      <WorkspaceHeading icon="play-circle-outline" label="KỊCH BẢN KIỂM TRA" title="Thử lại lịch trình" description="Lưu những câu hỏi cụ thể để kiểm tra dữ liệu sau mỗi lần đổi phiên bản." />
       <Notice message={`Truy vấn mẫu chạy trên phiên bản đang dùng. Sau khi chuyển phiên bản, bấm “Chạy tất cả” để kiểm tra kết quả. Gợi ý hôm nay: ${getTransitDateTime().date}.`} />
 
-      <SectionTitle>Thêm truy vấn</SectionTitle>
+      {feedback ? <Notice message={feedback} /> : null}
+      <Disclosure title="Thêm truy vấn mẫu" summary="Lưu tham số để kiểm tra lại sau mỗi lần đổi lịch.">
       <Card style={styles.form}>
-        <ChipPicker label="LOẠI" options={typeOptions} value={type} onChange={(value) => { setType(value); setFormError(''); }} />
+        <ChipPicker label="LOẠI" options={typeOptions} value={type} onChange={(value) => { setType(value); setFormError(''); setFieldError(''); }} />
+        <Text style={[styles.fieldLabel, { color: colors.ink }]}>Tên truy vấn (không bắt buộc)</Text>
         <SearchField icon="bookmark-outline" accessibilityLabel="Tên truy vấn" placeholder={`Tên, ví dụ: ${TYPES[type].label} buổi sáng`} value={name} onChangeText={setName} maxLength={120} />
         {TYPES[type].fields.map((field) => (
           <View key={field.key}>
@@ -138,17 +164,18 @@ export function SavedQueriesScreen() {
               autoCorrect={false}
               keyboardType={field.key === 'limit' ? 'number-pad' : 'default'}
             />
+            {fieldError === field.key && formError ? <Text accessibilityRole="alert" style={[styles.resultLine, { color: colors.danger }]}>{formError}</Text> : null}
           </View>
         ))}
-        {formError ? <ErrorState message={formError} /> : null}
+        {formError && !fieldError ? <ErrorState message={formError} /> : null}
         <Button label="Lưu truy vấn" icon="add-circle-outline" loading={create.isPending} onPress={() => void save()} />
       </Card>
+      </Disclosure>
 
-      <SectionTitle right={list.length ? <Button label="Chạy tất cả" icon="play" variant="ghost" loading={runner.isPending} onPress={() => void run()} /> : undefined}>
-        {`Đã lưu (${list.length})`}
-      </SectionTitle>
+      <SectionTitle>{`Kịch bản đã lưu (${list.length})`}</SectionTitle>
+      {list.length ? <View style={{ marginBottom: spacing.md }}><Button label="Chạy tất cả" icon="play" variant="outline" disabled={remove.isPending} loading={runner.isPending} onPress={() => void run()} /></View> : null}
       {Object.keys(runs).length ? (
-        <Notice tone={failed ? 'warning' : 'info'} message={failed ? `${failed} truy vấn trả về lỗi hoặc không tìm thấy.` : 'Tất cả truy vấn đã chạy thành công.'} />
+        <Notice tone={failed ? 'warning' : 'info'} message={`Trong ${Object.keys(runs).length} truy vấn vừa chạy: ${Object.keys(runs).length - failed} thành công, ${failed} lỗi. Kết quả rỗng không đồng nghĩa với lỗi.`} />
       ) : null}
       {runError ? <ErrorState message={runError} /> : null}
       {queries.isLoading ? <LoadingState /> : null}
@@ -164,11 +191,12 @@ export function SavedQueriesScreen() {
           <Card key={query.id} style={styles.query}>
             <View style={styles.queryHead}>
               <View style={styles.queryBody}>
+                <Text style={[styles.scenarioType, { color: colors.primary }]}>{TYPES[query.type]?.label ?? query.type}</Text>
                 <Text style={[styles.queryName, { color: colors.ink }]}>{query.name}</Text>
-                <Text style={[styles.queryMeta, { color: colors.muted }]}>{TYPES[query.type]?.label ?? query.type} · {describeParams(query)}</Text>
               </View>
-              {ok !== undefined ? <Icon name={ok ? 'checkmark-circle' : 'alert-circle'} size={22} color={ok ? colors.primary : colors.danger} /> : null}
+              {ok !== undefined ? <View accessible accessibilityLabel={ok ? 'Lần chạy gần nhất thành công' : 'Lần chạy gần nhất có lỗi'}><Icon name={ok ? 'checkmark-circle' : 'alert-circle'} size={22} color={ok ? colors.primary : colors.danger} /></View> : null}
             </View>
+            <ScenarioParams query={query} />
             {query.last_run_at ? (
               <Text style={[styles.queryMeta, { color: colors.muted }]}>
                 Lần chạy cuối {formatDateTime(query.last_run_at)} · phiên bản #{query.last_version_id ?? '—'} · {query.last_result_count ?? 0} kết quả
@@ -176,8 +204,8 @@ export function SavedQueriesScreen() {
             ) : null}
             {lastRun ? <RunResult result={lastRun} /> : null}
             <View style={styles.actions}>
-              <View style={styles.action}><Button label="Chạy" icon="play-outline" variant="outline" loading={runner.isPending && runner.variables === query.id} onPress={() => void run(query.id)} /></View>
-              <View style={styles.action}><Button label="Xóa" icon="trash-outline" variant="ghost" onPress={() => void onDelete(query)} /></View>
+              <View style={styles.action}><Button label="Chạy" icon="play-outline" variant="outline" disabled={runner.isPending || remove.isPending} loading={runner.isPending && (runner.variables === undefined || runner.variables === query.id)} onPress={() => void run(query.id)} /></View>
+              <View style={styles.action}><Button label="Xóa" icon="trash-outline" variant="ghost" disabled={runner.isPending || remove.isPending} loading={remove.isPending && remove.variables === query.id} onPress={() => void onDelete(query)} /></View>
             </View>
           </Card>
         );
@@ -194,7 +222,7 @@ function RunResult({ result }: { result: SavedQueryRun }) {
       <Text style={[styles.resultHead, { color: result.ok ? colors.ink : colors.danger }]}>
         {result.ok ? `${result.count} kết quả trên phiên bản #${result.version ?? '—'}` : result.errors?.[0]?.message ?? `Lỗi ${result.status}`}
       </Text>
-      {lines.map((line, index) => <Text key={index} style={[styles.resultLine, { color: colors.ink }]} numberOfLines={1}>{line}</Text>)}
+      {lines.map((line, index) => <Text key={index} style={[styles.resultLine, { color: colors.ink }]}>{line}</Text>)}
       {result.ok && result.count === 0 ? <Text style={[styles.resultLine, { color: colors.muted }]}>Không có kết quả cho tham số này.</Text> : null}
     </View>
   );
@@ -229,13 +257,14 @@ const styles = StyleSheet.create({
   content: { padding: spacing.lg, paddingBottom: 40 },
   form: { gap: spacing.sm },
   fieldLabel: { fontSize: 12, fontWeight: '800', marginBottom: 4 },
-  query: { gap: 6, marginBottom: spacing.sm },
+  query: { gap: 10, marginBottom: spacing.md, shadowOpacity: 0, elevation: 0 },
+  scenarioType: { fontSize: 11, fontWeight: '800', letterSpacing: 0.7, marginBottom: 6 },
   queryHead: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm },
   queryBody: { flex: 1 },
-  queryName: { fontSize: 15, fontWeight: '800' },
+  queryName: { fontSize: 19, fontWeight: '800' },
   queryMeta: { fontSize: 12, lineHeight: 18, marginTop: 2 },
-  actions: { flexDirection: 'row', gap: spacing.sm },
-  action: { flex: 1 },
+  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  action: { flexGrow: 1, flexBasis: 140 },
   result: { borderRadius: radius.sm, padding: 10, gap: 2 },
   resultHead: { fontSize: 13, fontWeight: '800' },
   resultLine: { fontSize: 12, lineHeight: 18 },

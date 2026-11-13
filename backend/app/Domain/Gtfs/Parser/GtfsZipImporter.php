@@ -261,7 +261,7 @@ final class GtfsZipImporter
                 $errors[] = new ValidationError('calendar.txt', $line, 'end_date', 'invalid_date_range', 'end_date is before start_date', 'error', $end->format('Ymd'));
             }
 
-            if ($start !== null && $end !== null && $start === $end && !$this->hasAnyWeekday($row)) {
+            if ($start !== null && $end !== null && !$this->hasAnyWeekday($row)) {
                 $warnings[] = new ValidationError('calendar.txt', $line, null, 'service_never_runs', 'Service has no active weekday; it can only run via calendar_dates.txt', 'warning');
             }
         }
@@ -306,12 +306,23 @@ final class GtfsZipImporter
         $this->checkDuplicates($rows['calendar_dates.txt'] ?? [], 'calendar_dates.txt', 'service_id', $errors, 'date');
         $this->checkDuplicates($rows['stop_times.txt'] ?? [], 'stop_times.txt', 'trip_id', $errors, 'stop_sequence');
 
-        // agency_id is optional in GTFS when the feed has exactly one agency.
-        $agencyOptional = count($agencies) <= 1;
+        // Count agency rows, not distinct IDs: missing/duplicate IDs must not
+        // make a multi-agency feed look like a single-agency feed.
+        $agencyOptional = count($rows['agency.txt'] ?? []) === 1;
+        $this->checkDuplicates($rows['agency.txt'] ?? [], 'agency.txt', 'agency_id', $errors);
+        if (!$agencyOptional) {
+            foreach ($rows['agency.txt'] ?? [] as $index => $agency) {
+                $this->requireValue($agency, 'agency.txt', $index + 2, 'agency_id', $errors);
+            }
+        }
 
         foreach ($rows['routes.txt'] ?? [] as $index => $route) {
             $agencyId = trim($route['agency_id'] ?? '');
-            if (!$agencyOptional && $agencyId !== '' && !isset($agencies[$agencyId])) {
+            if ($agencyId === '') {
+                if (!$agencyOptional) {
+                    $this->requireValue($route, 'routes.txt', $index + 2, 'agency_id', $errors);
+                }
+            } elseif (!isset($agencies[$agencyId])) {
                 $errors[] = new ValidationError('routes.txt', $index + 2, 'agency_id', 'unknown_agency', 'Route references an unknown agency', 'error', $agencyId);
             }
         }
